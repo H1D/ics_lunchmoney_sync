@@ -3,8 +3,8 @@ version: '3.8'
 services:
   telegram-bot:
     build:
-      context: ./telegram-bot
-      dockerfile: Dockerfile
+      context: https://github.com/H1D/ics_lunchmoney_sync.git
+      dockerfile: telegram-bot/Dockerfile
     container_name: telegram-bot
     restart: unless-stopped
     env_file:
@@ -12,6 +12,16 @@ services:
     environment:
       - TOKEN=${TOKEN}
       - USER_ID=${USER_ID}
+      - ICS_EMAIL=${ICS_EMAIL}
+      - ICS_PASSWORD=${ICS_PASSWORD}
+      - LUNCHMONEY_TOKEN=${LUNCHMONEY_TOKEN}
+      - LUNCHMONEY_ASSET_ID=${LUNCHMONEY_ASSET_ID}
+      - SYNC_DAYS=${SYNC_DAYS:-30}
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
     volumes:
-      - ./telegram-bot:/app
-      - /app/node_modules
+      - telegram-bot-data:/app
+    # Remove volumes if not needed for persistence
+
+volumes:
+  telegram-bot-data:
