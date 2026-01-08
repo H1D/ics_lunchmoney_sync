@@ -9,8 +9,27 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 - 📊 Sync to Lunch Money with deduplication
 - 🤖 Simple Telegram interface
 - 🐳 Docker-ready deployment
+- 🚀 Automated CI/CD with GitHub Actions
+- 📦 Pre-built Docker images from GHCR
 
 ## Quick Start
+
+### Using Docker Image (Recommended)
+
+The bot is available as a Docker image from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/temasus/ics_lunchmoney_sync:latest
+```
+
+Or use `docker-compose.yml`:
+
+```yaml
+services:
+  telegram-bot:
+    image: ghcr.io/temasus/ics_lunchmoney_sync:latest
+    env_file: .env
+```
 
 ### Prerequisites
 
@@ -168,6 +187,36 @@ SKIP=gitleaks git commit -m "your message"
 ### CI/CD Protection
 
 GitHub Actions automatically scans all pushes and pull requests using gitleaks. If secrets are detected, the workflow will fail and results will be uploaded to the GitHub Security tab.
+
+## Docker Images
+
+### Available Tags
+
+Docker images are automatically built and pushed to GitHub Container Registry on every push to `main`:
+
+- `latest` - Latest build from main branch
+- `main` - Build from main branch
+- `vX.Y.Z` - Version tags (when releases are created)
+- `sha-<commit>` - Build from specific commit
+
+### Building Locally
+
+If you prefer to build the image yourself:
+
+```bash
+cd telegram-bot
+docker build -t ics-lunchmoney-sync .
+```
+
+### CI/CD Pipeline
+
+This repository uses GitHub Actions to:
+1. **Build** Docker image on every push to `main`
+2. **Push** to GitHub Container Registry (ghcr.io)
+3. **Tag** with branch name, commit SHA, and version tags
+4. **Cache** layers for faster builds
+
+View available packages at: https://github.com/temasus/ics_lunchmoney_sync/pkgs/container/ics_lunchmoney_sync
 
 ## License
 
