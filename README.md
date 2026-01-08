@@ -2,8 +2,6 @@
 
 A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card transactions to [Lunch Money](https://lunchmoney.app/).
 
-[![Deploy to Fly](https://fly.io/buttons/deploy-blue.svg)](https://fly.io/new?from=https://github.com/H1D/ics_lunchmoney_sync)
-
 ## Features
 
 - 🔐 Secure login with 2FA support
@@ -18,20 +16,18 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 
 ### Deploy to Fly.io (Easiest)
 
-Fly.io offers a free tier that's perfect for running this bot. Deploy in seconds:
+Fly.io offers a free tier that's perfect for running this bot. Deploy directly from this repository:
 
 ```bash
 # Install flyctl
 curl -L https://fly.io/install.sh | sh
 
-# Login to Fly.io
+# Login to Fly.io (or sign up if new)
 flyctl auth signup
 
-# Deploy
-fly launch
+# Deploy this repository
+fly launch --from https://github.com/H1D/ics_lunchmoney_sync
 ```
-
-Or click the "Deploy to Fly" button above.
 
 **Set your secrets:**
 ```bash
@@ -46,7 +42,6 @@ flyctl secrets set SYNC_DAYS=60
 
 **Your bot is now live!** Fly.io will:
 - Deploy your bot to their infrastructure
-- Provide a public URL (though this bot doesn't need one)
 - Handle auto-scaling (scales to zero when inactive)
 - Keep it running for free on their free tier
 
