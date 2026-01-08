@@ -102,56 +102,13 @@ Send a message to [@userinfobot](https://t.me/userinfobot) on Telegram to get yo
 
 ### Finding Your Lunch Money Asset ID
 
-The `LUNCHMONEY_ASSET_ID` tells Lunch Money which account to associate your imported transactions with. Follow these steps to find it:
-
-#### Method 1: Through the Web Interface (Recommended)
-
 1. Go to [Lunch Money](https://lunchmoney.app/) and log in
 2. Navigate to **Settings → Assets**
-3. Find your credit card account (e.g., ICS/ABN AMRO) in the list
-4. Click on the account name to view details
-5. **The asset ID appears in the URL** as a number:
-   - URL format: `https://lunchmoney.app/assets/12345/edit`
-   - In this example: `12345` is your asset ID
+3. Find your ICS/ABN AMRO account and click on it
+4. **The asset ID is the number in the URL**: `https://lunchmoney.app/assets/12345/edit`
+   - Use `12345` as your `LUNCHMONEY_ASSET_ID`
 
-#### Method 2: Using the Lunch Money API
-
-You can also retrieve your asset ID using the [Lunch Money API](https://lunchmoney.dev/):
-
-```bash
-curl -X GET "https://dev.lunchmoney.app/v1/assets" \
-  -H "Authorization: Bearer YOUR_LUNCHMONEY_TOKEN"
-```
-
-This returns a JSON response with all your assets. Find your ICS/ABN AMRO account and copy the `id` field:
-
-```json
-{
-  "assets": [
-    {
-      "id": 12345,
-      "type_name": "Credit Card",
-      "name": "ICS ABN AMRO",
-      "display_name": "My ICS Card",
-      ...
-    }
-  ]
-}
-```
-
-In this example, use `12345` as your `LUNCHMONEY_ASSET_ID`.
-
-#### Setting the Asset ID
-
-Once you have your asset ID, add it to your `.env` file:
-
-```env
-LUNCHMONEY_ASSET_ID=12345
-```
-
-**Important**: Each transaction synced by this bot will be assigned to this asset ID. Make sure it matches the correct credit card account in Lunch Money to keep your finances organized.
-
-For more information about the Assets API, see the [official Lunch Money API documentation](https://lunchmoney.dev/).
+For API reference, see the [Lunch Money API docs](https://lunchmoney.dev/).
 
 ## Local Development
 
