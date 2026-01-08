@@ -80,6 +80,49 @@
       queueMicrotask(() => input.focus());
     });
 
+  // Error dialog for user-friendly error messages
+  const showErrorDialog = (title, message) => {
+    const dialog = document.createElement("dialog");
+    dialog.className =
+      "backdrop:bg-black/50 bg-white rounded-xl p-6 max-w-md w-[90%] shadow-2xl";
+
+    const titleEl = Object.assign(document.createElement("h2"), {
+      textContent: title,
+      className: "mb-4 text-xl font-semibold text-red-600",
+    });
+
+    const messageEl = Object.assign(document.createElement("div"), {
+      innerHTML: message,
+      className: "mb-5 text-sm leading-relaxed text-gray-600",
+    });
+
+    const closeBtn = Object.assign(document.createElement("button"), {
+      textContent: "Close",
+      className:
+        "bg-gray-500 hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition",
+      onclick: () => {
+        dialog.close();
+        dialog.remove();
+      },
+    });
+
+    const buttonContainer = Object.assign(document.createElement("div"), {
+      className: "flex gap-3 justify-end",
+    });
+    buttonContainer.append(closeBtn);
+
+    dialog.append(titleEl, messageEl, buttonContainer);
+    document.body.append(dialog);
+    dialog.showModal();
+
+    // ESC key closes
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      dialog.close();
+      dialog.remove();
+    });
+  };
+
   // Get or request credentials with modern async pattern
   const getOrPrompt = async (
     key,
@@ -198,25 +241,53 @@
   );
 
   // Fetch all accounts and auto-detect
-  const accountsResp = await fetch(
-    "/api/nl/sec/frontendservices/allaccountsv2",
-    {
-      headers: {
-        "X-XSRF-TOKEN": xsrfToken,
-        Accept: "application/json",
-      },
+  let accounts;
+  try {
+    const accountsResp = await fetch(
+      "/api/nl/sec/frontendservices/allaccountsv2",
+      {
+        headers: {
+          "X-XSRF-TOKEN": xsrfToken,
+          Accept: "application/json",
+        },
+      }
+    );
+
+    if (!accountsResp.ok) {
+      if (accountsResp.status === 403) {
+        showErrorDialog(
+          "❌ Authentication Failed",
+          "Please make sure you're logged into ICS Cards and viewing your account page, then try again.<br><br>If you're not logged in, please log in first and navigate to your transactions page."
+        );
+        return; // Exit early, don't continue
+      }
+      throw new Error(`Failed to fetch accounts: ${accountsResp.status}`);
     }
-  );
 
-  if (!accountsResp.ok) {
-    throw new Error(`Failed to fetch accounts: ${accountsResp.status}`);
-  }
+    const accountsData = await accountsResp.json();
+    accounts = Array.isArray(accountsData) ? accountsData : [accountsData];
 
-  const accountsData = await accountsResp.json();
-  const accounts = Array.isArray(accountsData) ? accountsData : [accountsData];
-
-  if (accounts.length === 0) {
-    throw new Error("No accounts found");
+    if (accounts.length === 0) {
+      showErrorDialog(
+        "❌ No Accounts Found",
+        "No accounts were found. Please make sure you're logged in and have access to at least one account."
+      );
+      return; // Exit early
+    }
+  } catch (err) {
+    // Handle network errors or other fetch failures
+    if (err.name === "TypeError" && err.message.includes("fetch")) {
+      showErrorDialog(
+        "❌ Network Error",
+        "Failed to connect to ICS Cards. Please check your internet connection and try again."
+      );
+    } else {
+      showErrorDialog(
+        "❌ Error",
+        `An error occurred: ${err.message}<br><br>Please make sure you're logged into ICS Cards and try again.`
+      );
+    }
+    return; // Exit early
   }
 
   // Use first account (or only account)
@@ -400,7 +471,14 @@
     }, 1500);
   } catch (err) {
     console.error("Error syncing historical data:", err);
-    progress.close();
-    showPopup(`An error occurred: ${err.message}`);
+    // Close progress dialog if it exists
+    if (typeof progress !== "undefined" && progress) {
+      progress.close();
+    }
+    // Show user-friendly error dialog
+    showErrorDialog(
+      "❌ Sync Failed",
+      `An error occurred while syncing transactions: ${err.message}<br><br>Please try again or check the browser console for more details.`
+    );
   }
 })();
