@@ -138,7 +138,10 @@ bot.on('callback_query', async (query) => {
   // Parse progress updates from stderr (JSON logs)
   bunProcess.stderr.on('data', async (data) => {
     stderr += data.toString();
-    
+
+    // Log all stderr to console for Docker logs
+    console.error('[SYNC]', data.toString().trim());
+
     // Try to parse JSON lines from stderr
     const lines = data.toString().split('\n').filter(line => line.trim());
     for (const line of lines) {
@@ -208,6 +211,8 @@ bot.on('callback_query', async (query) => {
   // Collect stdout (final result)
   bunProcess.stdout.on('data', (data) => {
     stdout += data.toString();
+    // Log stdout too for debugging
+    console.log('[SYNC OUT]', data.toString().trim());
   });
   
   bunProcess.on('close', async (code) => {
