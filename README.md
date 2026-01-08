@@ -102,10 +102,10 @@ Send a message to [@userinfobot](https://t.me/userinfobot) on Telegram to get yo
 
 ### Finding Your Lunch Money Asset ID
 
-1. Go to [Lunch Money](https://lunchmoney.app/)
-2. Navigate to Settings → Assets
-3. Find your ICS/ABN AMRO account
-4. The asset ID is in the URL or account details
+1. Go to [Lunch Money](https://my.lunchmoney.app/)
+2. Click on your ICS/ABN AMRO asset/account
+3. **The asset ID is in the URL**: `https://my.lunchmoney.app/transactions/2026/01?asset=12345&match=any&time=year`
+   - Use `12345` as your `LUNCHMONEY_ASSET_ID`
 
 ## Local Development
 
