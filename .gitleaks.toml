@@ -43,6 +43,4 @@ paths = [
   '''gitleaks-report\.sarif''',
   '''\.git/''',
   '''node_modules/''',
-  '''\.env\.example''',
-  '''\.pre-commit-config\.yaml''',
 ]

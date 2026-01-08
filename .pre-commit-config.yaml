@@ -3,6 +3,6 @@ repos:
     rev: v8.24.2
     hooks:
       - id: gitleaks
-        entry: gitleaks detect --verbose --redact --no-git
+        entry: gitleaks detect --verbose --redact --log-opts="HEAD"
         language: system
         pass_filenames: false
