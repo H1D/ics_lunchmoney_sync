@@ -7,6 +7,7 @@ services:
     dockerContext: .
     plan: free
     autoDeployTrigger: off
+    region: oregon
     envVars:
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
