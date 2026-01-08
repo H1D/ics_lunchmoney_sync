@@ -2,6 +2,8 @@
 
 A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card transactions to [Lunch Money](https://lunchmoney.app/).
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/H1D/ics_lunchmoney_sync)
+
 ## Features
 
 - 🔐 Secure login with 2FA support
@@ -14,7 +16,33 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 
 ## Quick Start
 
-### Deploy to Fly.io (Easiest)
+### One-Click Deploy to Render (Easiest - Free Tier)
+
+Click the button above to deploy instantly to Render's free tier!
+
+**After clicking:**
+1. Sign up/login to Render
+2. Authorize Render to access your GitHub (if needed)
+3. Set your environment variables in the Render dashboard:
+   - `TOKEN` - Your Telegram bot token
+   - `USER_ID` - Your Telegram user ID
+   - `ICS_EMAIL` - Your ICS bank email
+   - `ICS_PASSWORD` - Your ICS bank password
+   - `LUNCHMONEY_TOKEN` - Your Lunch Money API token
+   - `LUNCHMONEY_ASSET_ID` - Your Lunch Money asset ID
+   - `SYNC_DAYS` - Days to sync (optional, default 30)
+4. Click "Deploy" and you're done!
+
+**Benefits:**
+- ✅ True one-click deploy from GitHub
+- ✅ Free tier available
+- ✅ Auto-deploys from Dockerfile
+- ✅ No CLI required
+- ✅ Managed infrastructure
+
+**Note:** Render's free tier spins down after 15 minutes of inactivity and takes ~30 seconds to wake up.
+
+### Deploy to Fly.io (Alternative - CLI Required)
 
 Fly.io offers a free tier that's perfect for running this bot. Deploy directly from this repository:
 
