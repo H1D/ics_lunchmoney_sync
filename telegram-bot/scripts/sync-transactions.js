@@ -692,7 +692,32 @@ async function sendToLunchMoney(transactions) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Lunch Money API error: ${response.status} ${errorText}`);
+      const status = response.status;
+
+      // Better error messages based on status code
+      let userMessage = `Lunch Money API error (${status})`;
+      if (status === 503) {
+        userMessage = "Lunch Money service is temporarily unavailable (503). Please try again in a few minutes.";
+      } else if (status === 401) {
+        userMessage = "Invalid Lunch Money API token. Please check your LUNCHMONEY_TOKEN.";
+      } else if (status === 500) {
+        userMessage = "Lunch Money server error. Please try again later.";
+      } else if (status >= 400 && status < 500) {
+        userMessage = `Lunch Money client error (${status}). Please check your configuration.`;
+      } else if (status >= 500) {
+        userMessage = `Lunch Money server error (${status}). The service may be experiencing issues.`;
+      }
+
+      // Log detailed error for debugging
+      console.error(JSON.stringify({
+        success: false,
+        error: userMessage,
+        details: `Status ${status}: ${errorText.substring(0, 200)}`,
+        step: "sync_lunchmoney",
+        statusCode: status,
+      }));
+
+      throw new Error(userMessage);
     }
 
     const result = await response.json();
@@ -789,9 +814,16 @@ async function sync() {
       success: false,
       error: error.message,
       step: error.step || "unknown",
+      stack: error.stack, // Include stack trace for debugging
     };
 
+    // Ensure error is logged to stderr for Docker logs
     console.error(JSON.stringify(result));
+
+    // Also log plain text for easier reading
+    console.error(`\n❌ ERROR: ${error.message}`);
+    console.error(`Step: ${error.step || 'unknown'}`);
+
     process.exit(1);
   } finally {
     if (browser) {
@@ -799,6 +831,28 @@ async function sync() {
     }
   }
 }
+
+// Add global error handlers for uncaught errors
+process.on('unhandledRejection', (reason, promise) => {
+  console.error(JSON.stringify({
+    success: false,
+    error: 'Unhandled promise rejection',
+    details: String(reason),
+    step: 'unhandled_error',
+  }));
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error(JSON.stringify({
+    success: false,
+    error: 'Uncaught exception',
+    details: error.message,
+    stack: error.stack,
+    step: 'unhandled_error',
+  }));
+  process.exit(1);
+});
 
 // Run sync
 sync();
