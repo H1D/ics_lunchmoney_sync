@@ -19,14 +19,18 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 **Using Portainer (Recommended):**
 1. In Portainer, go to **Stacks** → **Add stack**
 2. **Upload from git**: `https://github.com/H1D/ics_lunchmoney_sync.git`
-3. **Replace the placeholder values** in the environment variables:
-   - `YOUR_TELEGRAM_BOT_TOKEN_HERE`
-   - `YOUR_TELEGRAM_USER_ID_HERE`
-   - `YOUR_ICS_EMAIL_HERE`
-   - `YOUR_ICS_PASSWORD_HERE`
-   - `YOUR_LUNCHMONEY_TOKEN_HERE`
-   - `YOUR_ASSET_ID_HERE`
+3. In Portainer's **Environment variables** section, add:
+   - `TOKEN` = your Telegram bot token
+   - `USER_ID` = your Telegram user ID
+   - `ICS_EMAIL` = your ICS email
+   - `ICS_PASSWORD` = your ICS password
+   - `ICS_ACCOUNT_NUMBER` = your account number (optional)
+   - `LUNCHMONEY_TOKEN` = your Lunch Money token
+   - `LUNCHMONEY_ASSET_ID` = your asset ID
+   - `SYNC_DAYS` = `30` (or your preferred number of days)
 4. **Deploy the stack**
+
+The `docker-compose.yml` uses `${VARIABLE}` syntax and will automatically pull values from Portainer's environment variables.
 
 **Using docker-compose directly:**
 ```bash
