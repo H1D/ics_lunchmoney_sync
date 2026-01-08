@@ -11,12 +11,26 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 - 🐳 Docker-ready deployment
 - 🚀 Automated CI/CD with GitHub Actions
 - 📦 Pre-built Docker images from GHCR
+- 🔖 Browser bookmarklet for manual syncing
+
+## Bookmarklet
+
+In addition to the Telegram bot, this project includes a browser bookmarklet for manual syncing. See [bookmarklet/README.md](./bookmarklet/README.md) for details.
+
+**Quick start:**
+
+```bash
+cd bookmarklet
+bun install
+bun run watch  # Edit src/bookmarklet.js and auto-build
+```
 
 ## Quick Start
 
 ### Deploy with Docker
 
 **Using Portainer (Recommended):**
+
 1. In Portainer, go to **Stacks** → **Add stack**
 2. **Upload from git**: `https://github.com/H1D/ics_lunchmoney_sync.git`
 3. In Portainer's **Environment variables** section, add:
@@ -33,6 +47,7 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 The `docker-compose.yml` uses `${VARIABLE}` syntax and will automatically pull values from Portainer's environment variables.
 
 **Using docker-compose directly:**
+
 ```bash
 # Clone the repository
 git clone https://github.com/H1D/ics_lunchmoney_sync.git
@@ -69,11 +84,13 @@ docker run -d \
 1. **Clone or copy this project**
 
 2. **Create `.env` file:**
+
    ```bash
    cp .env.example .env
    ```
 
 3. **Edit `.env` with your credentials:**
+
    ```env
    TOKEN=your_telegram_bot_token
    USER_ID=your_telegram_user_id
@@ -85,6 +102,7 @@ docker run -d \
    ```
 
 4. **Start the bot:**
+
    ```bash
    docker-compose up -d
    ```
@@ -111,16 +129,16 @@ docker run -d \
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `TOKEN` | Yes | Telegram bot token from @BotFather |
-| `USER_ID` | Yes | Your Telegram user ID (bot only responds to you) |
-| `ICS_EMAIL` | Yes | ICS bank login email |
-| `ICS_PASSWORD` | Yes | ICS bank password (use quotes if contains `#`) |
-| `ICS_ACCOUNT_NUMBER` | No | Account number (auto-detected if only one account) |
-| `LUNCHMONEY_TOKEN` | Yes | Lunch Money API token |
-| `LUNCHMONEY_ASSET_ID` | Yes | Lunch Money asset ID for this account |
-| `SYNC_DAYS` | Yes | Number of days to sync (default: 30) |
+| Variable              | Required | Description                                        |
+| --------------------- | -------- | -------------------------------------------------- |
+| `TOKEN`               | Yes      | Telegram bot token from @BotFather                 |
+| `USER_ID`             | Yes      | Your Telegram user ID (bot only responds to you)   |
+| `ICS_EMAIL`           | Yes      | ICS bank login email                               |
+| `ICS_PASSWORD`        | Yes      | ICS bank password (use quotes if contains `#`)     |
+| `ICS_ACCOUNT_NUMBER`  | No       | Account number (auto-detected if only one account) |
+| `LUNCHMONEY_TOKEN`    | Yes      | Lunch Money API token                              |
+| `LUNCHMONEY_ASSET_ID` | Yes      | Lunch Money asset ID for this account              |
+| `SYNC_DAYS`           | Yes      | Number of days to sync (default: 30)               |
 
 ### Finding Your Telegram User ID
 
@@ -155,6 +173,7 @@ bun run scripts/sync-transactions.js
 ### Password contains special characters
 
 If your password contains `#` or other special characters, make sure to quote it in `.env`:
+
 ```env
 ICS_PASSWORD="your#password"
 ```
@@ -162,6 +181,7 @@ ICS_PASSWORD="your#password"
 ### 2FA timeout
 
 If you see a 2FA timeout error:
+
 - Make sure to approve the login on your phone quickly
 - The timeout is 2 minutes
 - Try clicking "GO" again
@@ -173,6 +193,7 @@ If you have multiple ICS accounts, the bot will show you account details and ask
 ### Docker issues
 
 If Chromium fails to launch in Docker:
+
 - Make sure the Dockerfile includes all Chromium dependencies
 - Check container logs: `docker-compose logs telegram-bot`
 
@@ -237,6 +258,7 @@ docker build -t ics-lunchmoney-sync .
 ### CI/CD Pipeline
 
 This repository uses GitHub Actions to:
+
 1. **Build** Docker image on every push to `main`
 2. **Push** to GitHub Container Registry (ghcr.io)
 3. **Tag** with branch name, commit SHA, and version tags

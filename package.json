@@ -1,0 +1,21 @@
+{
+  "name": "ics-lunchmoney-sync",
+  "version": "1.0.0",
+  "description": "ICS Bank to Lunch Money Sync - Telegram Bot & Bookmarklet",
+  "type": "module",
+  "scripts": {
+    "bookmarklet:build": "cd bookmarklet && bun run build",
+    "bookmarklet:watch": "cd bookmarklet && bun run watch",
+    "bookmarklet:dev": "cd bookmarklet && bun run dev"
+  },
+  "keywords": [
+    "telegram-bot",
+    "bookmarklet",
+    "ics",
+    "abn-amro",
+    "lunchmoney",
+    "sync"
+  ],
+  "author": "",
+  "license": "MIT"
+}
