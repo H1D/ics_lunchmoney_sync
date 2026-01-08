@@ -2,6 +2,8 @@
 
 A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card transactions to [Lunch Money](https://lunchmoney.app/).
 
+[![Deploy to Fly](https://fly.io/buttons/deploy-blue.svg)](https://fly.io/docs/quickstart/dockerfile/)
+
 ## Features
 
 - 🔐 Secure login with 2FA support
@@ -13,6 +15,55 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 - 📦 Pre-built Docker images from GHCR
 
 ## Quick Start
+
+### Deploy to Fly.io (Easiest)
+
+Fly.io offers a free tier that's perfect for running this bot. Deploy in seconds:
+
+```bash
+# Install flyctl
+curl -L https://fly.io/install.sh | sh
+
+# Login to Fly.io
+flyctl auth signup
+
+# Deploy
+fly launch
+```
+
+Or click the "Deploy to Fly" button above.
+
+**Set your secrets:**
+```bash
+flyctl secrets set TOKEN=your_telegram_bot_token
+flyctl secrets set USER_ID=your_telegram_user_id
+flyctl secrets set ICS_EMAIL=your_email@example.com
+flyctl secrets set ICS_PASSWORD=your_password
+flyctl secrets set LUNCHMONEY_TOKEN=your_lunchmoney_token
+flyctl secrets set LUNCHMONEY_ASSET_ID=your_asset_id
+flyctl secrets set SYNC_DAYS=60
+```
+
+**Your bot is now live!** Fly.io will:
+- Deploy your bot to their infrastructure
+- Provide a public URL (though this bot doesn't need one)
+- Handle auto-scaling (scales to zero when inactive)
+- Keep it running for free on their free tier
+
+**Managing your deployment:**
+```bash
+# View logs
+flyctl logs
+
+# Check status
+flyctl status
+
+# Scale to zero to stop
+flyctl scale count 0
+
+# Scale up to restart
+flyctl scale count 1
+```
 
 ### Using Docker Image (Recommended)
 
