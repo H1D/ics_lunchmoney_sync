@@ -68,6 +68,30 @@ flyctl secrets set TOKEN=your_token USER_ID=your_id \
 - ✅ Global deployment regions
 - ✅ Advanced scaling options
 
+### Deploy with Portainer (Self-Hosted)
+
+If you have Portainer running, you can deploy this bot using the provided docker-compose file.
+
+**Steps:**
+1. In Portainer, go to **Stacks** → **Add stack**
+2. **Upload from git** or copy the contents of `docker-compose.portainer.yml`
+3. **Replace the placeholder values** with your actual credentials:
+   - `YOUR_TELEGRAM_BOT_TOKEN_HERE`
+   - `YOUR_TELEGRAM_USER_ID_HERE`
+   - `YOUR_ICS_EMAIL_HERE`
+   - `YOUR_ICS_PASSWORD_HERE`
+   - `YOUR_LUNCHMONEY_TOKEN_HERE`
+   - `YOUR_ASSET_ID_HERE`
+4. **Deploy the stack**
+
+Portainer will clone the repo and build the Docker image automatically.
+
+**Benefits:**
+- ✅ Self-hosted, full control
+- ✅ Builds from source
+- ✅ Works with existing Portainer setup
+- ✅ No external dependencies
+
 ### Using Docker Image (Recommended)
 
 The bot is available as a Docker image from GitHub Container Registry:
