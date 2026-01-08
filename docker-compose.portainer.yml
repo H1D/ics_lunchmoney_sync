@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  telegram-bot:
+    image: ghcr.io/temasus/ics_lunchmoney_sync:latest
+    container_name: telegram-bot
+    restart: unless-stopped
+    environment:
+      - TOKEN=${TOKEN}
+      - USER_ID=${USER_ID}
+      - ICS_EMAIL=${ICS_EMAIL}
+      - ICS_PASSWORD=${ICS_PASSWORD}
+      - ICS_ACCOUNT_NUMBER=${ICS_ACCOUNT_NUMBER}
+      - LUNCHMONEY_TOKEN=${LUNCHMONEY_TOKEN}
+      - LUNCHMONEY_ASSET_ID=${LUNCHMONEY_ASSET_ID}
+      - SYNC_DAYS=${SYNC_DAYS:-30}
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
