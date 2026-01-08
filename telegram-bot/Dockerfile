@@ -26,14 +26,15 @@ WORKDIR /app
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Copy package files
-COPY package.json ./
+# Copy package files from telegram-bot directory
+COPY telegram-bot/package.json ./package.json
+COPY telegram-bot/bun.lockb* ./bun.lockb
 
 # Install dependencies
 RUN bun install
 
-# Copy application files
-COPY . .
+# Copy application files from telegram-bot directory
+COPY telegram-bot/ ./
 
 # Run the bot
 CMD ["bun", "run", "bot.js"]
