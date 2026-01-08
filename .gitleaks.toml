@@ -1,0 +1,48 @@
+title = "Gitleaks Custom Config for ICS Lunchmoney Sync"
+
+# Custom GitHub token rules (GitHub tokens are not in default gitleaks)
+[[rules]]
+id = "github-pat"
+description = "GitHub Personal Access Token"
+regex = '''ghp_[a-zA-Z0-9]{36,}'''
+
+[[rules]]
+id = "github-oauth"
+description = "GitHub OAuth Access Token"
+regex = '''gho_[a-zA-Z0-9]{36,}'''
+
+[[rules]]
+id = "github-app-token"
+description = "GitHub App Token"
+regex = '''ghu_[a-zA-Z0-9]{36,}'''
+
+[[rules]]
+id = "github-server-token"
+description = "GitHub Server Token"
+regex = '''ghs_[a-zA-Z0-9]{36,}'''
+
+# Stripe API keys
+[[rules]]
+id = "stripe-live-key"
+description = "Stripe Live API Key"
+regex = '''sk_live_[a-zA-Z0-9]{24,}'''
+
+[[rules]]
+id = "stripe-test-key"
+description = "Stripe Test API Key"
+regex = '''sk_test_[a-zA-Z0-9]{24,}'''
+
+# Lunchmoney API key
+[[rules]]
+id = "lunchmoney-api-key"
+description = "Lunchmoney API Token"
+regex = '''(?i)lunchmoney[_-]?token['"']?\s*[:=]\s*['"]?([a-z0-9]{20,})['"]?'''
+
+[allowlist]
+paths = [
+  '''gitleaks-report\.sarif''',
+  '''\.git/''',
+  '''node_modules/''',
+  '''\.env\.example''',
+  '''\.pre-commit-config\.yaml''',
+]

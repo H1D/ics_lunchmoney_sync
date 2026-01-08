@@ -138,6 +138,37 @@ If Chromium fails to launch in Docker:
 - The bot only responds to messages from your `USER_ID`
 - All sensitive data is stored in environment variables
 
+## Secret Scanning
+
+This repository uses [gitleaks](https://github.com/gitleaks/gitleaks) to prevent secrets from being committed.
+
+### Local Protection (Pre-commit Hook)
+
+Install pre-commit hooks to scan for secrets before each commit:
+
+```bash
+# Install pre-commit (if not already installed)
+pip install pre-commit
+# or
+brew install pre-commit
+
+# Install the hooks
+pre-commit install
+
+# Test the hook
+pre-commit run --all-files
+```
+
+The hook will automatically run before each commit. To skip it for a specific commit:
+
+```bash
+SKIP=gitleaks git commit -m "your message"
+```
+
+### CI/CD Protection
+
+GitHub Actions automatically scans all pushes and pull requests using gitleaks. If secrets are detected, the workflow will fail and results will be uploaded to the GitHub Security tab.
+
 ## License
 
 MIT
