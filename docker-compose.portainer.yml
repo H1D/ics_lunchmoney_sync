@@ -1,6 +1,8 @@
 services:
   telegram-bot:
-    image: ghcr.io/temasus/ics_lunchmoney_sync:latest
+    build:
+      context: https://github.com/H1D/ics_lunchmoney_sync.git
+      dockerfile: telegram-bot/Dockerfile
     container_name: telegram-bot
     restart: unless-stopped
     environment:
