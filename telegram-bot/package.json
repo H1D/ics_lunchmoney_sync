@@ -1,0 +1,14 @@
+{
+  "name": "telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot with GO button",
+  "main": "bot.js",
+  "scripts": {
+    "start": "bun run bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.64.0",
+    "puppeteer-core": "^21.0.0"
+  },
+  "type": "module"
+}
