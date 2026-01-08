@@ -84,6 +84,23 @@ On first run, it will prompt for:
 
 Values are stored in localStorage for future use.
 
+## Demo
+
+Watch a video demonstration of the bookmarklet in action:
+
+📹 [Usage Video](https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4)
+
+## Submission to getbookmarklets.com
+
+This bookmarklet is ready for submission to [getbookmarklets.com](https://getbookmarklets.com/scripts/add).
+
+**Submission URL:** Use the raw GitHub URL to the source file:
+```
+https://raw.githubusercontent.com/H1D/ics_lunchmoney_sync/main/bookmarklet/src/bookmarklet.js
+```
+
+The source file includes userscript-style metadata (`@name`, `@description`, `@image`, `@video`) that will be automatically extracted by getbookmarklets.com.
+
 ## Features
 
 - ✅ Modern JavaScript (ES2022)
