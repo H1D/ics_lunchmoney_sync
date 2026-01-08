@@ -70,12 +70,12 @@ flyctl secrets set TOKEN=your_token USER_ID=your_id \
 
 ### Deploy with Portainer (Self-Hosted)
 
-If you have Portainer running, you can deploy this bot using the provided docker-compose file.
+If you have Portainer running, you can deploy this bot using the standard `docker-compose.yml`.
 
 **Steps:**
 1. In Portainer, go to **Stacks** → **Add stack**
-2. **Upload from git** or copy the contents of `docker-compose.portainer.yml`
-3. **Replace the placeholder values** with your actual credentials:
+2. **Upload from git**: `https://github.com/H1D/ics_lunchmoney_sync.git`
+3. **Replace the placeholder values** in the environment variables:
    - `YOUR_TELEGRAM_BOT_TOKEN_HERE`
    - `YOUR_TELEGRAM_USER_ID_HERE`
    - `YOUR_ICS_EMAIL_HERE`
