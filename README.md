@@ -107,8 +107,6 @@ Send a message to [@userinfobot](https://t.me/userinfobot) on Telegram to get yo
 3. **The asset ID is in the URL**: `https://my.lunchmoney.app/transactions/2026/01?asset=12345&match=any&time=year`
    - Use `12345` as your `LUNCHMONEY_ASSET_ID`
 
-For API reference, see the [Lunch Money API docs](https://lunchmoney.dev/).
-
 ## Local Development
 
 ```bash
