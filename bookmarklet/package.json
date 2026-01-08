@@ -1,0 +1,22 @@
+{
+  "name": "ics-lunchmoney-bookmarklet",
+  "version": "1.0.0",
+  "description": "Browser bookmarklet for ICS Bank to Lunch Money sync",
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.js",
+    "watch": "bun run build.js --watch",
+    "dev": "bun run build.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
+  "keywords": [
+    "bookmarklet",
+    "ics",
+    "lunchmoney",
+    "sync"
+  ],
+  "author": "",
+  "license": "MIT"
+}
