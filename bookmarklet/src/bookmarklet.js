@@ -1,6 +1,6 @@
 // @name ICS to Lunch Money Sync
 // @description Sync ICS Bank (ABN AMRO) transactions to Lunch Money - fetches last 50 days of transactions with progress tracking
-// @image https://lunchmoney.app/assets/images/logo.svg
+// @image https://lunchmoney.app/favicon.ico
 // @video https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4
 
 (async () => {

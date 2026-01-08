@@ -88,7 +88,10 @@ Values are stored in localStorage for future use.
 
 Watch a video demonstration of the bookmarklet in action:
 
-📹 [Usage Video](https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4)
+<video width="800" height="450" controls>
+  <source src="https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4" type="video/mp4">
+  Your browser does not support the video tag. <a href="https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4">Download the video</a> instead.
+</video>
 
 ## Submission to getbookmarklets.com
 
