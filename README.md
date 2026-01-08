@@ -25,6 +25,8 @@ bun install
 bun run watch  # Edit src/bookmarklet.js and auto-build
 ```
 
+📹 **Demo Video:** See the bookmarklet in action: [usage.mp4](./bookmarklet/usage.mp4)
+
 ## Quick Start
 
 ### Deploy with Docker
