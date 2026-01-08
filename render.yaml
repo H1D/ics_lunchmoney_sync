@@ -2,14 +2,14 @@ services:
   # Telegram Bot Service
   - type: worker
     name: ics-lunchmoney-sync
-    env: docker
+    runtime: docker
     dockerfilePath: ./telegram-bot/Dockerfile
     dockerContext: .
-    plan: free # Use free tier
-    autoDeploy: false # Don't auto-deploy on every push
+    plan: free
+    autoDeployTrigger: off
     envVars:
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
+        value: "true"
       - key: PUPPETEER_EXECUTABLE_PATH
         value: /usr/bin/chromium
       # Users will need to set these secrets in Render dashboard:
@@ -20,3 +20,4 @@ services:
       # - LUNCHMONEY_TOKEN (Lunch Money API token)
       # - LUNCHMONEY_ASSET_ID (Lunch Money asset ID)
       # - SYNC_DAYS (Number of days to sync, optional)
+
