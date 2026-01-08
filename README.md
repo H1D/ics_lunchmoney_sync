@@ -44,49 +44,29 @@ Click the button above to deploy instantly to Render's free tier!
 
 ### Deploy to Fly.io (Alternative - CLI Required)
 
-Fly.io offers a free tier that's perfect for running this bot. Deploy directly from this repository:
+Fly.io offers a free tier with fast cold starts. Requires CLI installation.
 
+📖 **[Full Fly.io Deployment Guide →](docs/DEPLOYMENT-FLYIO.md)**
+
+**Quick start:**
 ```bash
 # Install flyctl
 curl -L https://fly.io/install.sh | sh
 
-# Login to Fly.io (or sign up if new)
-flyctl auth signup
-
 # Deploy this repository
 fly launch --from https://github.com/H1D/ics_lunchmoney_sync
+
+# Set secrets
+flyctl secrets set TOKEN=your_token USER_ID=your_id \
+  ICS_EMAIL=your@email.com ICS_PASSWORD=your_password \
+  LUNCHMONEY_TOKEN=your_lm_token LUNCHMONEY_ASSET_ID=your_asset_id
 ```
 
-**Set your secrets:**
-```bash
-flyctl secrets set TOKEN=your_telegram_bot_token
-flyctl secrets set USER_ID=your_telegram_user_id
-flyctl secrets set ICS_EMAIL=your_email@example.com
-flyctl secrets set ICS_PASSWORD=your_password
-flyctl secrets set LUNCHMONEY_TOKEN=your_lunchmoney_token
-flyctl secrets set LUNCHMONEY_ASSET_ID=your_asset_id
-flyctl secrets set SYNC_DAYS=60
-```
-
-**Your bot is now live!** Fly.io will:
-- Deploy your bot to their infrastructure
-- Handle auto-scaling (scales to zero when inactive)
-- Keep it running for free on their free tier
-
-**Managing your deployment:**
-```bash
-# View logs
-flyctl logs
-
-# Check status
-flyctl status
-
-# Scale to zero to stop
-flyctl scale count 0
-
-# Scale up to restart
-flyctl scale count 1
-```
+**Benefits:**
+- ✅ Free tier available
+- ✅ Fast cold starts (~2 seconds)
+- ✅ Global deployment regions
+- ✅ Advanced scaling options
 
 ### Using Docker Image (Recommended)
 
