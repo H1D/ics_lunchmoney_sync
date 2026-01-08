@@ -2,8 +2,6 @@
 
 A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card transactions to [Lunch Money](https://lunchmoney.app/).
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/H1D/ics_lunchmoney_sync)
-
 ## Features
 
 - 🔐 Secure login with 2FA support
@@ -16,63 +14,9 @@ A Telegram bot that automatically syncs your ICS Bank (ABN AMRO) credit card tra
 
 ## Quick Start
 
-### One-Click Deploy to Render (Easiest - Free Tier)
+### Deploy with Docker
 
-Click the button above to deploy instantly to Render's free tier!
-
-**After clicking:**
-1. Sign up/login to Render
-2. Authorize Render to access your GitHub (if needed)
-3. Set your environment variables in the Render dashboard:
-   - `TOKEN` - Your Telegram bot token
-   - `USER_ID` - Your Telegram user ID
-   - `ICS_EMAIL` - Your ICS bank email
-   - `ICS_PASSWORD` - Your ICS bank password
-   - `LUNCHMONEY_TOKEN` - Your Lunch Money API token
-   - `LUNCHMONEY_ASSET_ID` - Your Lunch Money asset ID
-   - `SYNC_DAYS` - Days to sync (optional, default 30)
-4. Click "Deploy" and you're done!
-
-**Benefits:**
-- ✅ True one-click deploy from GitHub
-- ✅ Free tier available
-- ✅ Auto-deploys from Dockerfile
-- ✅ No CLI required
-- ✅ Managed infrastructure
-
-**Note:** Render's free tier spins down after 15 minutes of inactivity and takes ~30 seconds to wake up.
-
-### Deploy to Fly.io (Alternative - CLI Required)
-
-Fly.io offers a free tier with fast cold starts. Requires CLI installation.
-
-📖 **[Full Fly.io Deployment Guide →](docs/DEPLOYMENT-FLYIO.md)**
-
-**Quick start:**
-```bash
-# Install flyctl
-curl -L https://fly.io/install.sh | sh
-
-# Deploy this repository
-fly launch --from https://github.com/H1D/ics_lunchmoney_sync
-
-# Set secrets
-flyctl secrets set TOKEN=your_token USER_ID=your_id \
-  ICS_EMAIL=your@email.com ICS_PASSWORD=your_password \
-  LUNCHMONEY_TOKEN=your_lm_token LUNCHMONEY_ASSET_ID=your_asset_id
-```
-
-**Benefits:**
-- ✅ Free tier available
-- ✅ Fast cold starts (~2 seconds)
-- ✅ Global deployment regions
-- ✅ Advanced scaling options
-
-### Deploy with Portainer (Self-Hosted)
-
-If you have Portainer running, you can deploy this bot using the standard `docker-compose.yml`.
-
-**Steps:**
+**Using Portainer (Recommended):**
 1. In Portainer, go to **Stacks** → **Add stack**
 2. **Upload from git**: `https://github.com/H1D/ics_lunchmoney_sync.git`
 3. **Replace the placeholder values** in the environment variables:
@@ -84,29 +28,29 @@ If you have Portainer running, you can deploy this bot using the standard `docke
    - `YOUR_ASSET_ID_HERE`
 4. **Deploy the stack**
 
-Portainer will clone the repo and build the Docker image automatically.
+**Using docker-compose directly:**
+```bash
+# Clone the repository
+git clone https://github.com/H1D/ics_lunchmoney_sync.git
+cd ics_lunchmoney_sync
 
-**Benefits:**
-- ✅ Self-hosted, full control
-- ✅ Builds from source
-- ✅ Works with existing Portainer setup
-- ✅ No external dependencies
+# Edit docker-compose.yml and replace YOUR_*_HERE placeholders
+# Then run:
+docker-compose up -d
+```
 
-### Using Docker Image (Recommended)
-
-The bot is available as a Docker image from GitHub Container Registry:
+### Using Pre-built Docker Image
 
 ```bash
 docker pull ghcr.io/temasus/ics_lunchmoney_sync:latest
-```
-
-Or use `docker-compose.yml`:
-
-```yaml
-services:
-  telegram-bot:
-    image: ghcr.io/temasus/ics_lunchmoney_sync:latest
-    env_file: .env
+docker run -d \
+  -e TOKEN=your_token \
+  -e USER_ID=your_user_id \
+  -e ICS_EMAIL=your@email.com \
+  -e ICS_PASSWORD=your_password \
+  -e LUNCHMONEY_TOKEN=your_lm_token \
+  -e LUNCHMONEY_ASSET_ID=your_asset_id \
+  ghcr.io/temasus/ics_lunchmoney_sync:latest
 ```
 
 ### Prerequisites
