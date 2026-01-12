@@ -1,31 +1,44 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { spawn } from 'child_process';
+import logger from './logger.js';
 
 const TOKEN = process.env.TOKEN;
 const USER_ID = process.env.USER_ID;
 
 if (!TOKEN || !USER_ID) {
-  console.error('Error: TOKEN and USER_ID must be set in environment variables');
+  logger.error('Missing required environment variables', null, {
+    missing: !TOKEN ? 'TOKEN' : 'USER_ID',
+  });
   process.exit(1);
 }
+
+logger.info('Initializing Telegram bot', {
+  userId: USER_ID,
+  tokenPrefix: TOKEN.substring(0, 10) + '...',
+});
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // Handle polling errors
 bot.on('polling_error', (error) => {
-  console.error('Polling error:', error.message);
-  console.error('Error code:', error.code);
-  if (error.response && error.response.body) {
-    console.error('Response body:', JSON.stringify(error.response.body, null, 2));
-  }
+  logger.telegram.error('polling_error', error, {
+    errorCode: error.code,
+    errorMessage: error.message,
+  });
 });
 
 // Handle webhook errors
 bot.on('webhook_error', (error) => {
-  console.error('Webhook error:', error);
+  logger.telegram.error('webhook_error', error);
 });
 
-console.log('Telegram bot started!');
+bot.on('error', (error) => {
+  logger.telegram.error('bot_error', error);
+});
+
+logger.info('Telegram bot started successfully', {
+  polling: true,
+});
 
 // Lock to prevent multiple simultaneous sync operations
 let isSyncing = false;
@@ -34,20 +47,44 @@ let isSyncing = false;
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
+  const username = msg.from.username || 'unknown';
+  const messageText = msg.text || '(no text)';
   
-  console.log(`Received message from user ${userId}, expected ${USER_ID}`);
+  logger.info('Received message', {
+    userId,
+    username,
+    chatId,
+    messageId: msg.message_id,
+    messageText: messageText.substring(0, 100),
+    expectedUserId: USER_ID,
+  });
   
   // Check if user is authorized
   if (userId !== USER_ID) {
-    console.log(`Unauthorized user ${userId}, sending teapot response`);
+    logger.warn('Unauthorized access attempt', {
+      userId,
+      username,
+      chatId,
+      expectedUserId: USER_ID,
+    });
+    
+    logger.telegram.request('sendMessage', { chat_id: chatId, text: '🫖 I\'m a teapot' });
     bot.sendMessage(chatId, '🫖 I\'m a teapot')
+      .then(() => {
+        logger.debug('Teapot message sent to unauthorized user', { userId, chatId });
+      })
       .catch((error) => {
-        console.error('Failed to send teapot message:', error);
+        logger.telegram.error('sendMessage', error, { userId, chatId, type: 'teapot' });
       });
     return;
   }
   
-  console.log(`Authorized user ${userId}, sending GO button`);
+  logger.info('Authorized user message received', {
+    userId,
+    username,
+    chatId,
+    messageText: messageText.substring(0, 100),
+  });
   
   // Show inline keyboard with GO button
   const options = {
@@ -60,12 +97,18 @@ bot.on('message', (msg) => {
     }
   };
   
+  logger.telegram.request('sendMessage', { chat_id: chatId, text: 'Click the button to start:' });
   bot.sendMessage(chatId, 'Click the button to start:', options)
-    .then(() => {
-      console.log('GO button sent successfully');
+    .then((response) => {
+      logger.telegram.response('sendMessage', response);
+      logger.info('GO button sent successfully', {
+        userId,
+        chatId,
+        messageId: response.message_id,
+      });
     })
     .catch((error) => {
-      console.error('Failed to send message:', error);
+      logger.telegram.error('sendMessage', error, { userId, chatId, type: 'go_button' });
     });
 });
 
@@ -73,53 +116,126 @@ bot.on('message', (msg) => {
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id.toString();
+  const username = query.from.username || 'unknown';
   const messageId = query.message.message_id;
+  const callbackData = query.data;
+  
+  logger.info('Callback query received', {
+    userId,
+    username,
+    chatId,
+    messageId,
+    callbackData,
+    queryId: query.id,
+  });
   
   // Check if user is authorized
   if (userId !== USER_ID) {
+    logger.warn('Unauthorized callback query', {
+      userId,
+      username,
+      chatId,
+      callbackData,
+      expectedUserId: USER_ID,
+    });
+    
+    logger.telegram.request('answerCallbackQuery', { 
+      callback_query_id: query.id, 
+      text: '🫖 I\'m a teapot',
+      show_alert: true,
+    });
     bot.answerCallbackQuery(query.id, {
       text: '🫖 I\'m a teapot',
       show_alert: true
+    }).catch((error) => {
+      logger.telegram.error('answerCallbackQuery', error, { queryId: query.id, type: 'unauthorized' });
     });
     return;
   }
   
   // Check if sync is already running
   if (isSyncing) {
+    logger.warn('Sync already in progress, rejecting callback', {
+      userId,
+      chatId,
+      callbackData,
+    });
+    
+    logger.telegram.request('answerCallbackQuery', { 
+      callback_query_id: query.id, 
+      text: '⏳ Sync already in progress. Please wait...',
+      show_alert: true,
+    });
     await bot.answerCallbackQuery(query.id, {
       text: '⏳ Sync already in progress. Please wait...',
       show_alert: true
+    }).catch((error) => {
+      logger.telegram.error('answerCallbackQuery', error, { queryId: query.id, type: 'busy' });
     });
     return;
   }
   
   // Set sync lock
   isSyncing = true;
+  logger.sync.start({
+    userId,
+    username,
+    chatId,
+    messageId,
+    callbackData,
+  });
   
   // Answer the callback query
+  logger.telegram.request('answerCallbackQuery', { 
+    callback_query_id: query.id, 
+    text: 'Processing...',
+    show_alert: false,
+  });
   await bot.answerCallbackQuery(query.id, {
     text: 'Processing...',
     show_alert: false
+  }).catch((error) => {
+    logger.telegram.error('answerCallbackQuery', error, { queryId: query.id, type: 'processing' });
   });
   
   // Update message to show processing
+  logger.telegram.request('editMessageText', { 
+    chat_id: chatId, 
+    message_id: messageId, 
+    text: 'Processing...',
+  });
   await bot.editMessageText('Processing...', {
     chat_id: chatId,
     message_id: messageId
+  }).catch((error) => {
+    logger.telegram.error('editMessageText', error, { chatId, messageId, type: 'processing' });
   });
   
   // Execute the sync script via bun
   const scriptPath = './scripts/sync-transactions.js';
+  logger.info('Spawning sync script process', {
+    scriptPath,
+    cwd: '/app',
+    command: 'bun run',
+    hasEnvVars: !!process.env.ICS_EMAIL && !!process.env.LUNCHMONEY_TOKEN,
+  });
+  
   const bunProcess = spawn('bun', ['run', scriptPath], {
     cwd: '/app',
     stdio: ['pipe', 'pipe', 'pipe'],
     env: process.env  // Pass all environment variables
   });
   
+  logger.info('Sync script process spawned', {
+    pid: bunProcess.pid,
+    scriptPath,
+  });
+  
   let stdout = '';
   let stderr = '';
   let lastStatusMessage = 'Processing...';
   let statusUpdateInterval = null;
+  let lastLogTime = Date.now();
   
   // Function to update status message
   const updateStatus = async (message) => {
@@ -137,16 +253,34 @@ bot.on('callback_query', async (query) => {
   
   // Parse progress updates from stderr (JSON logs)
   bunProcess.stderr.on('data', async (data) => {
-    stderr += data.toString();
+    const dataStr = data.toString();
+    stderr += dataStr;
+    const now = Date.now();
 
-    // Log all stderr to console for Docker logs
-    console.error('[SYNC]', data.toString().trim());
+    // Log all stderr to console for Docker logs (but throttle if too verbose)
+    if (now - lastLogTime > 1000 || dataStr.includes('step')) {
+      logger.debug('Sync script stderr', {
+        data: dataStr.trim().substring(0, 500),
+        stderrLength: stderr.length,
+      });
+      lastLogTime = now;
+    }
 
     // Try to parse JSON lines from stderr
-    const lines = data.toString().split('\n').filter(line => line.trim());
+    const lines = dataStr.split('\n').filter(line => line.trim());
     for (const line of lines) {
       try {
         const logEntry = JSON.parse(line);
+        
+        // Log structured sync step
+        if (logEntry.step) {
+          logger.sync.step(logEntry.step, logEntry.message || '', {
+            ...logEntry,
+            userId,
+            chatId,
+          });
+        }
+        
         if (logEntry.step && logEntry.message) {
           // Map step to user-friendly message
           let userMessage = '';
@@ -202,34 +336,73 @@ bot.on('callback_query', async (query) => {
             await updateStatus(userMessage);
           }
         }
+        
+        // Log errors from sync script
+        if (logEntry.success === false || logEntry.error) {
+          logger.sync.error(logEntry.step || 'unknown', new Error(logEntry.error || 'Unknown error'), {
+            ...logEntry,
+            userId,
+            chatId,
+          });
+        }
       } catch (e) {
-        // Not JSON, ignore
+        // Not JSON, log as plain text if it looks important
+        const trimmed = line.trim();
+        if (trimmed.length > 0 && !trimmed.includes('[Object') && !trimmed.includes('[Function')) {
+          logger.debug('Sync script non-JSON output', {
+            line: trimmed.substring(0, 200),
+          });
+        }
       }
     }
   });
   
   // Collect stdout (final result)
   bunProcess.stdout.on('data', (data) => {
-    stdout += data.toString();
-    // Log stdout too for debugging
-    console.log('[SYNC OUT]', data.toString().trim());
+    const dataStr = data.toString();
+    stdout += dataStr;
+    logger.debug('Sync script stdout', {
+      data: dataStr.trim().substring(0, 500),
+      stdoutLength: stdout.length,
+    });
   });
   
   bunProcess.on('close', async (code) => {
+    logger.info('Sync script process closed', {
+      pid: bunProcess.pid,
+      exitCode: code,
+      stdoutLength: stdout.length,
+      stderrLength: stderr.length,
+      userId,
+      chatId,
+    });
+    
     // Release sync lock
     isSyncing = false;
     
     // Clear any status update interval
     if (statusUpdateInterval) {
       clearInterval(statusUpdateInterval);
+      logger.debug('Cleared status update interval');
     }
     
     let result;
     
     if (code === 0) {
+      logger.info('Sync script completed successfully', {
+        exitCode: code,
+        stdoutLength: stdout.length,
+      });
+      
       // Parse JSON result from stdout
       try {
         const resultJson = JSON.parse(stdout.trim());
+        logger.sync.complete(resultJson, {
+          userId,
+          chatId,
+          messageId,
+        });
+        
         if (resultJson.success) {
           result = `✅ ${resultJson.message}\n\n` +
             `📊 Transactions found: ${resultJson.transactionsCount}\n` +
@@ -237,26 +410,66 @@ bot.on('callback_query', async (query) => {
             `📅 Period: ${resultJson.fromDate} to ${resultJson.untilDate}`;
         } else {
           result = `❌ Error: ${resultJson.error || 'Unknown error'}`;
+          logger.sync.error(resultJson.step || 'unknown', new Error(resultJson.error), {
+            ...resultJson,
+            userId,
+            chatId,
+          });
         }
       } catch (e) {
+        logger.warn('Failed to parse sync result JSON', {
+          error: e.message,
+          stdout: stdout.substring(0, 500),
+          userId,
+          chatId,
+        });
         // Fallback if JSON parsing fails
         result = `✅ Success!\n\n${stdout || 'Sync completed successfully.'}`;
       }
     } else {
+      logger.error('Sync script failed', null, {
+        exitCode: code,
+        stdoutLength: stdout.length,
+        stderrLength: stderr.length,
+        stderrPreview: stderr.substring(0, 500),
+        userId,
+        chatId,
+      });
+      
       // Try to parse error from stderr
       try {
-        const errorJson = JSON.parse(stderr.trim().split('\n').pop() || '{}');
+        const stderrLines = stderr.trim().split('\n').filter(l => l.trim());
+        const lastLine = stderrLines[stderrLines.length - 1] || '{}';
+        const errorJson = JSON.parse(lastLine);
+        
         if (errorJson.error) {
           result = `❌ Error: ${errorJson.error}\n\nStep: ${errorJson.step || 'unknown'}`;
+          logger.sync.error(errorJson.step || 'unknown', new Error(errorJson.error), {
+            ...errorJson,
+            userId,
+            chatId,
+          });
         } else {
-          result = `❌ Error (exit code: ${code})\n\n${stderr || 'Script execution failed.'}`;
+          result = `❌ Error (exit code: ${code})\n\n${stderr.substring(0, 500) || 'Script execution failed.'}`;
         }
       } catch (e) {
-        result = `❌ Error (exit code: ${code})\n\n${stderr || 'Script execution failed.'}`;
+        logger.warn('Failed to parse error JSON from stderr', {
+          error: e.message,
+          stderrPreview: stderr.substring(0, 500),
+          userId,
+          chatId,
+        });
+        result = `❌ Error (exit code: ${code})\n\n${stderr.substring(0, 500) || 'Script execution failed.'}`;
       }
     }
     
     // Update message with final result
+    logger.telegram.request('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: result.substring(0, 100) + '...',
+    });
+    
     try {
       await bot.editMessageText(result, {
         chat_id: chatId,
@@ -269,9 +482,26 @@ bot.on('callback_query', async (query) => {
           ]
         }
       });
+      logger.info('Final result message updated', {
+        userId,
+        chatId,
+        messageId,
+        resultLength: result.length,
+      });
     } catch (error) {
       // If message edit fails (e.g., message too old), send a new message
-      console.error('Failed to edit message:', error);
+      logger.telegram.error('editMessageText', error, {
+        chatId,
+        messageId,
+        type: 'final_result',
+        fallback: true,
+      });
+      
+      logger.telegram.request('sendMessage', {
+        chat_id: chatId,
+        text: result.substring(0, 100) + '...',
+      });
+      
       bot.sendMessage(chatId, result, {
         reply_markup: {
           inline_keyboard: [
@@ -280,6 +510,18 @@ bot.on('callback_query', async (query) => {
             ]
           ]
         }
+      }).then((response) => {
+        logger.telegram.response('sendMessage', response);
+        logger.info('Sent new message with result (edit failed)', {
+          userId,
+          chatId,
+          newMessageId: response.message_id,
+        });
+      }).catch((sendError) => {
+        logger.telegram.error('sendMessage', sendError, {
+          chatId,
+          type: 'final_result_fallback',
+        });
       });
     }
   });
@@ -288,8 +530,20 @@ bot.on('callback_query', async (query) => {
     // Release sync lock on error
     isSyncing = false;
     
-    console.error('Failed to execute script:', error);
+    logger.error('Failed to spawn/execute sync script', error, {
+      scriptPath,
+      userId,
+      chatId,
+      messageId,
+    });
+    
     const errorMsg = `❌ Failed to execute script:\n${error.message}`;
+    
+    logger.telegram.request('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: errorMsg.substring(0, 100) + '...',
+    });
     
     try {
       await bot.editMessageText(errorMsg, {
@@ -304,6 +558,18 @@ bot.on('callback_query', async (query) => {
         }
       });
     } catch (editError) {
+      logger.telegram.error('editMessageText', editError, {
+        chatId,
+        messageId,
+        type: 'process_error',
+        fallback: true,
+      });
+      
+      logger.telegram.request('sendMessage', {
+        chat_id: chatId,
+        text: errorMsg.substring(0, 100) + '...',
+      });
+      
       bot.sendMessage(chatId, errorMsg, {
         reply_markup: {
           inline_keyboard: [
@@ -312,16 +578,12 @@ bot.on('callback_query', async (query) => {
             ]
           ]
         }
+      }).catch((sendError) => {
+        logger.telegram.error('sendMessage', sendError, {
+          chatId,
+          type: 'process_error_fallback',
+        });
       });
     }
   });
-});
-
-// Handle errors
-bot.on('polling_error', (error) => {
-  console.error('Polling error:', error);
-});
-
-bot.on('error', (error) => {
-  console.error('Bot error:', error);
 });

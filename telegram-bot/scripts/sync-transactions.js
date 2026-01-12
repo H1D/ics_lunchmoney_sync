@@ -54,6 +54,38 @@ const assetId = parseInt(LUNCHMONEY_ASSET_ID);
 const ICS_BASE_URL = "https://www.icscards.nl";
 const LUNCHMONEY_API_URL = "https://dev.lunchmoney.app/v1/transactions";
 
+/**
+ * Structured logging helper for sync script
+ */
+function log(level, step, message, context = {}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level,
+    step,
+    message,
+    ...context,
+  };
+  console.error(JSON.stringify(logEntry));
+}
+
+function logInfo(step, message, context) {
+  log('INFO', step, message, context);
+}
+
+function logError(step, message, error, context = {}) {
+  log('ERROR', step, message, {
+    ...context,
+    error: error?.message || String(error),
+    errorName: error?.name,
+    errorCode: error?.code,
+    errorStack: error?.stack ? error.stack.split('\n').slice(0, 3).join('\n') : undefined,
+  });
+}
+
+function logDebug(step, message, context) {
+  log('DEBUG', step, message, context);
+}
+
 // Puppeteer configuration
 const PUPPETEER_EXECUTABLE_PATH =
   process.env.PUPPETEER_EXECUTABLE_PATH ||
@@ -103,34 +135,58 @@ function getDateChunks(syncDays) {
  * Launch browser
  */
 async function launchBrowser() {
-  console.error(
-    JSON.stringify({ step: "browser_launch", message: "Launching browser..." })
-  );
-
-  const browser = await puppeteer.launch({
+  logInfo("browser_launch", "Launching browser...", {
     executablePath: PUPPETEER_EXECUTABLE_PATH,
     headless: PUPPETEER_HEADLESS,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-    ],
   });
 
-  return browser;
+  try {
+    const browser = await puppeteer.launch({
+      executablePath: PUPPETEER_EXECUTABLE_PATH,
+      headless: PUPPETEER_HEADLESS,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+      ],
+    });
+
+    logInfo("browser_launch", "Browser launched successfully", {
+      headless: PUPPETEER_HEADLESS,
+    });
+
+    return browser;
+  } catch (error) {
+    logError("browser_launch", "Failed to launch browser", error, {
+      executablePath: PUPPETEER_EXECUTABLE_PATH,
+    });
+    throw error;
+  }
 }
 
 /**
  * Login flow: navigate to login page, fill form, submit
  */
 async function login(page) {
-  console.error(
-    JSON.stringify({ step: "page_load", message: "Loading login page..." })
-  );
+  logInfo("page_load", "Loading login page...", {
+    url: `${ICS_BASE_URL}/web/consumer/abnamro/sca-login`,
+  });
 
   const loginUrl = `${ICS_BASE_URL}/web/consumer/abnamro/sca-login?URL=abnamro%2Fdashboard`;
 
-  await page.goto(loginUrl, { waitUntil: "networkidle2", timeout: 30000 });
+  try {
+    const response = await page.goto(loginUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    logInfo("page_load", "Login page loaded", {
+      status: response?.status(),
+      finalUrl: page.url(),
+    });
+  } catch (error) {
+    logError("page_load", "Failed to load login page", error, {
+      url: loginUrl,
+      currentUrl: page.url(),
+    });
+    throw error;
+  }
 
   // Handle cookie consent banner
   try {
@@ -140,25 +196,32 @@ async function login(page) {
       "#truste-consent-button",
     ];
 
+    let cookieAccepted = false;
     for (const selector of cookieButtonSelectors) {
       try {
         const button = await page.$(selector);
         if (button) {
           await button.click();
           await page.waitForTimeout(500);
+          cookieAccepted = true;
+          logDebug("page_load", "Cookie consent accepted", { selector });
           break;
         }
       } catch (e) {
         // Try next selector
       }
     }
+    if (!cookieAccepted) {
+      logDebug("page_load", "No cookie banner found or already accepted");
+    }
   } catch (e) {
-    // Cookie banner not found or already accepted - continue
+    logDebug("page_load", "Cookie banner handling error (non-fatal)", { error: e.message });
   }
 
-  console.error(
-    JSON.stringify({ step: "fill_form", message: "Filling credentials..." })
-  );
+  logInfo("fill_form", "Filling credentials...", {
+    emailLength: ICS_EMAIL?.length || 0,
+    passwordLength: ICS_PASSWORD?.length || 0,
+  });
 
   // Wait for form inputs to be visible - use XPath to find by aria-label or visible text
   let submitButton = null;
@@ -212,7 +275,18 @@ async function login(page) {
       ICS_PASSWORD
     );
 
+    logDebug("fill_form", "Form fields found", {
+      usernameFound: result.usernameFound,
+      passwordFound: result.passwordFound,
+      usernameLength: result.usernameLength,
+      passwordLength: result.passwordLength,
+    });
+
     if (!result.usernameFound || !result.passwordFound) {
+      logError("fill_form", "Could not find username or password field", null, {
+        usernameFound: result.usernameFound,
+        passwordFound: result.passwordFound,
+      });
       throw new Error("Could not find username or password field");
     }
 
@@ -234,22 +308,35 @@ async function login(page) {
     }
 
     submitButton = loginButton.asElement();
+    logDebug("fill_form", "Login button found");
   } catch (error) {
+    logError("fill_form", "Failed to find or fill form fields", error);
     throw error;
   }
 
-  console.error(
-    JSON.stringify({ step: "submit_form", message: "Submitting login form..." })
-  );
+  logInfo("submit_form", "Submitting login form...");
 
-  // Click submit button
-  await submitButton.click();
-  await page.waitForTimeout(1000);
+  try {
+    // Click submit button
+    await submitButton.click();
+    await page.waitForTimeout(1000);
+    logDebug("submit_form", "Login form submitted, waiting for navigation");
+  } catch (error) {
+    logError("submit_form", "Failed to submit login form", error);
+    throw error;
+  }
 
   // Try to wait for navigation, but don't fail if it doesn't happen immediately
   try {
     await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 10000 });
+    logDebug("submit_form", "Navigation completed after form submit", {
+      url: page.url(),
+    });
   } catch (navError) {
+    logDebug("submit_form", "Navigation timeout (expected, will check in 2FA wait)", {
+      currentUrl: page.url(),
+      error: navError.message,
+    });
     // Navigation might not happen immediately - that's OK, we'll check in wait2FA
   }
 }
@@ -258,12 +345,11 @@ async function login(page) {
  * Wait for 2FA confirmation
  */
 async function wait2FA(page) {
-  console.error(
-    JSON.stringify({
-      step: "2fa_wait",
-      message: "Waiting for 2FA confirmation (check your phone)...",
-    })
-  );
+  const startTime = Date.now();
+  logInfo("2fa_wait", "Waiting for 2FA confirmation (check your phone)...", {
+    timeout: 120000,
+    currentUrl: page.url(),
+  });
 
   // Wait for navigation to dashboard or 2FA completion
   // The page should navigate after 2FA is confirmed
@@ -283,23 +369,23 @@ async function wait2FA(page) {
     );
 
     const finalUrl = page.url();
-    console.error(
-      JSON.stringify({
-        step: "2fa_verified",
-        message: `2FA confirmed! Navigated to: ${finalUrl}`,
-      })
-    );
+    const waitTime = Date.now() - startTime;
+    logInfo("2fa_verified", `2FA confirmed! Navigated to: ${finalUrl}`, {
+      finalUrl,
+      waitTimeMs: waitTime,
+    });
 
     // Wait a bit for page to settle and set cookies
     await page.waitForTimeout(1000);
+    logDebug("2fa_verified", "Page settled, cookies should be set");
   } catch (error) {
     const currentUrl = page.url();
-    console.error(
-      JSON.stringify({
-        step: "2fa_timeout",
-        message: `Timeout waiting for 2FA. Current URL: ${currentUrl}`,
-      })
-    );
+    const waitTime = Date.now() - startTime;
+    logError("2fa_timeout", `Timeout waiting for 2FA. Current URL: ${currentUrl}`, error, {
+      currentUrl,
+      waitTimeMs: waitTime,
+      timeout: 120000,
+    });
     throw new Error(
       "2FA verification timeout - please confirm on your phone and try again"
     );
@@ -309,8 +395,9 @@ async function wait2FA(page) {
 /**
  * Extract cookies and XSRF token from page
  */
-function extractCookies(page) {
-  return page.cookies().then((cookies) => {
+async function extractCookies(page) {
+  try {
+    const cookies = await page.cookies();
     const cookieMap = new Map();
     let xsrfToken = null;
 
@@ -321,23 +408,34 @@ function extractCookies(page) {
       }
     }
 
+    logDebug("extract_cookies", "Cookies extracted", {
+      cookieCount: cookies.length,
+      hasXsrfToken: !!xsrfToken,
+      cookieNames: Array.from(cookieMap.keys()),
+    });
+
     return { cookies: cookieMap, xsrfToken };
-  });
+  } catch (error) {
+    logError("extract_cookies", "Failed to extract cookies", error);
+    throw error;
+  }
 }
 
 /**
  * Determine account number (auto-detect or use env var)
  */
 async function determineAccountNumber(page, cookieMap, xsrfToken) {
-  console.error(
-    JSON.stringify({
-      step: "determine_account",
-      message: "Determining account...",
-    })
-  );
+  logInfo("determine_account", "Determining account...", {
+    accountNumberProvided: !!accountNumber,
+  });
 
-  // Use browser context to make API call (cookies are automatically included)
-  const accountsData = await page.evaluate(async (xsrfToken) => {
+  try {
+    // Use browser context to make API call (cookies are automatically included)
+    logDebug("determine_account", "Fetching accounts from API", {
+      hasXsrfToken: !!xsrfToken,
+    });
+    
+    const accountsData = await page.evaluate(async (xsrfToken) => {
     const headers = {
       Accept: "application/json, text/plain, */*",
       "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
@@ -363,61 +461,64 @@ async function determineAccountNumber(page, cookieMap, xsrfToken) {
     return await response.json();
   }, xsrfToken);
 
-  // Update cookies from page (in case new ones were set)
-  const { cookies: updatedCookieMap, xsrfToken: updatedToken } =
-    await extractCookies(page);
-  const accounts = Array.isArray(accountsData) ? accountsData : [accountsData];
+    logInfo("determine_account", "Accounts fetched", {
+      accountsCount: Array.isArray(accountsData) ? accountsData.length : 1,
+    });
 
-  if (accounts.length === 0) {
-    throw new Error("No accounts found");
-  }
+    // Update cookies from page (in case new ones were set)
+    const { cookies: updatedCookieMap, xsrfToken: updatedToken } =
+      await extractCookies(page);
+    const accounts = Array.isArray(accountsData) ? accountsData : [accountsData];
 
-  // If account number is already set, validate it exists
-  if (accountNumber) {
-    const foundAccount = accounts.find(
-      (acc) => acc.accountNumber === accountNumber
-    );
-    if (!foundAccount) {
-      throw new Error(
-        `Account ${accountNumber} not found in available accounts`
-      );
+    if (accounts.length === 0) {
+      logError("determine_account", "No accounts found", null);
+      throw new Error("No accounts found");
     }
-    console.error(
-      JSON.stringify({
-        step: "account_selected",
-        message: `Using account: ${accountNumber}`,
-      })
-    );
-    return {
-      accountNumber,
-      cookieMap: updatedCookieMap,
-      xsrfToken: updatedToken,
-    };
-  }
 
-  // If only one account, use it automatically
-  if (accounts.length === 1) {
-    accountNumber = accounts[0].accountNumber;
-    console.error(
-      JSON.stringify({
-        step: "account_auto_detected",
-        message: `Auto-detected single account: ${accountNumber}`,
-      })
-    );
-    return {
-      accountNumber,
-      cookieMap: updatedCookieMap,
-      xsrfToken: updatedToken,
-    };
-  }
+    // If account number is already set, validate it exists
+    if (accountNumber) {
+      const foundAccount = accounts.find(
+        (acc) => acc.accountNumber === accountNumber
+      );
+      if (!foundAccount) {
+        logError("determine_account", `Account ${accountNumber} not found in available accounts`, null, {
+          requestedAccount: accountNumber,
+          availableAccounts: accounts.map(a => a.accountNumber),
+        });
+        throw new Error(
+          `Account ${accountNumber} not found in available accounts`
+        );
+      }
+      logInfo("account_selected", `Using account: ${accountNumber}`, {
+        accountNumber,
+        accountName: foundAccount.accountName || foundAccount.productName,
+      });
+      return {
+        accountNumber,
+        cookieMap: updatedCookieMap,
+        xsrfToken: updatedToken,
+      };
+    }
 
-  // Multiple accounts found - fetch latest transaction for each to help user decide
-  console.error(
-    JSON.stringify({
-      step: "fetch_account_details",
-      message: `Found ${accounts.length} accounts, fetching details...`,
-    })
-  );
+    // If only one account, use it automatically
+    if (accounts.length === 1) {
+      accountNumber = accounts[0].accountNumber;
+      logInfo("account_auto_detected", `Auto-detected single account: ${accountNumber}`, {
+        accountNumber,
+        accountName: accounts[0].accountName || accounts[0].productName,
+      });
+      return {
+        accountNumber,
+        cookieMap: updatedCookieMap,
+        xsrfToken: updatedToken,
+      };
+    }
+
+    // Multiple accounts found - fetch latest transaction for each to help user decide
+    logInfo("fetch_account_details", `Found ${accounts.length} accounts, fetching details...`, {
+      accountsCount: accounts.length,
+      accountNumbers: accounts.map(a => a.accountNumber),
+    });
 
   const accountDetails = [];
 
@@ -484,21 +585,18 @@ async function determineAccountNumber(page, cookieMap, xsrfToken) {
             }
           : null,
       });
-    } catch (err) {
-      console.error(
-        JSON.stringify({
-          step: "error",
-          message: `Failed to fetch details for account ${account.accountNumber}: ${err.message}`,
-        })
-      );
-      accountDetails.push({
-        accountNumber: account.accountNumber,
-        accountName: account.accountName || "Unknown",
-        balance: "N/A",
-        latestTransaction: null,
-      });
+      } catch (err) {
+        logError("fetch_account_details", `Failed to fetch details for account ${account.accountNumber}`, err, {
+          accountNumber: account.accountNumber,
+        });
+        accountDetails.push({
+          accountNumber: account.accountNumber,
+          accountName: account.accountName || "Unknown",
+          balance: "N/A",
+          latestTransaction: null,
+        });
+      }
     }
-  }
 
   // Format error message with account details
   let errorMessage = `Multiple accounts found (${accounts.length}). Please set ICS_ACCOUNT_NUMBER in .env:\n\n`;
@@ -520,36 +618,51 @@ async function determineAccountNumber(page, cookieMap, xsrfToken) {
     errorMessage += "\n";
   }
 
-  errorMessage +=
-    "Add one of these account numbers to your .env file:\nICS_ACCOUNT_NUMBER=<account_number>";
+    errorMessage +=
+      "Add one of these account numbers to your .env file:\nICS_ACCOUNT_NUMBER=<account_number>";
 
-  throw new Error(errorMessage);
+    logError("determine_account", "Multiple accounts found, user must specify", null, {
+      accountsCount: accounts.length,
+      accountDetails: accountDetails.map(d => ({
+        accountNumber: d.accountNumber,
+        accountName: d.accountName,
+      })),
+    });
+    throw new Error(errorMessage);
+  } catch (error) {
+    if (error.message.includes("Multiple accounts")) {
+      throw error; // Re-throw our formatted error
+    }
+    logError("determine_account", "Failed to determine account", error);
+    throw error;
+  }
 }
 
 /**
  * Fetch transactions in chunks
  */
 async function fetchTransactions(page, accountNumber, cookieMap, xsrfToken) {
-  console.error(
-    JSON.stringify({
-      step: "fetch_transactions",
-      message: "Fetching transactions...",
-    })
-  );
+  logInfo("fetch_transactions", "Fetching transactions...", {
+    accountNumber,
+    syncDays: SYNC_DAYS_PARSED,
+  });
 
   const chunks = getDateChunks(SYNC_DAYS_PARSED);
   const allTransactions = [];
 
+  logInfo("fetch_transactions", `Prepared ${chunks.length} date chunks`, {
+    chunksCount: chunks.length,
+    chunks: chunks.map(c => `${c.from} to ${c.to}`),
+  });
+
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    console.error(
-      JSON.stringify({
-        step: "fetch_chunk",
-        message: `Fetching transactions from ${chunk.from} to ${
-          chunk.to
-        } (chunk ${i + 1}/${chunks.length})...`,
-      })
-    );
+    logInfo("fetch_chunk", `Fetching transactions from ${chunk.from} to ${chunk.to} (chunk ${i + 1}/${chunks.length})...`, {
+      chunkIndex: i + 1,
+      totalChunks: chunks.length,
+      fromDate: chunk.from,
+      untilDate: chunk.to,
+    });
 
     // Use browser context for API call (cookies are automatically included)
     const transactions = await page.evaluate(
@@ -591,6 +704,11 @@ async function fetchTransactions(page, accountNumber, cookieMap, xsrfToken) {
     );
 
     if (!Array.isArray(transactions)) {
+      logError("fetch_chunk", "Invalid transactions response", null, {
+        chunkIndex: i + 1,
+        responseType: typeof transactions,
+        responsePreview: JSON.stringify(transactions).substring(0, 200),
+      });
       throw new Error(
         `Invalid transactions response: ${JSON.stringify(transactions)}`
       );
@@ -598,13 +716,21 @@ async function fetchTransactions(page, accountNumber, cookieMap, xsrfToken) {
 
     allTransactions.push(...transactions);
 
-    console.error(
-      JSON.stringify({
-        step: "chunk_complete",
-        message: `Fetched ${transactions.length} transactions from ${chunk.from} to ${chunk.to}`,
-      })
-    );
+    logInfo("chunk_complete", `Fetched ${transactions.length} transactions from ${chunk.from} to ${chunk.to}`, {
+      chunkIndex: i + 1,
+      totalChunks: chunks.length,
+      transactionsInChunk: transactions.length,
+      totalTransactionsSoFar: allTransactions.length,
+      fromDate: chunk.from,
+      untilDate: chunk.to,
+    });
   }
+
+  logInfo("fetch_transactions", "All transactions fetched", {
+    totalTransactions: allTransactions.length,
+    chunksProcessed: chunks.length,
+    accountNumber,
+  });
 
   return { transactions: allTransactions };
 }
@@ -650,12 +776,10 @@ function transformTransactions(transactions, untilDate) {
  * Send transactions to Lunch Money in batches
  */
 async function sendToLunchMoney(transactions) {
-  console.error(
-    JSON.stringify({
-      step: "sync_lunchmoney",
-      message: `Sending ${transactions.length} transactions to Lunch Money...`,
-    })
-  );
+  logInfo("sync_lunchmoney", `Sending ${transactions.length} transactions to Lunch Money...`, {
+    totalTransactions: transactions.length,
+    assetId,
+  });
 
   const batchSize = 100;
   const batches = [];
@@ -664,65 +788,101 @@ async function sendToLunchMoney(transactions) {
     batches.push(transactions.slice(i, i + batchSize));
   }
 
+  logInfo("sync_lunchmoney", `Prepared ${batches.length} batches`, {
+    batchesCount: batches.length,
+    batchSize,
+    totalTransactions: transactions.length,
+  });
+
   const results = [];
 
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
-    console.error(
-      JSON.stringify({
-        step: "sync_batch",
-        message: `Sending batch ${i + 1}/${batches.length} (${
-          batch.length
-        } transactions)...`,
-      })
-    );
-
-    const response = await fetch(LUNCHMONEY_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LUNCHMONEY_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        transactions: batch,
-        apply_rules: true,
-        check_for_recurring: true,
-      }),
+    logInfo("sync_batch", `Sending batch ${i + 1}/${batches.length} (${batch.length} transactions)...`, {
+      batchIndex: i + 1,
+      totalBatches: batches.length,
+      transactionsInBatch: batch.length,
+      batchesProcessed: i,
+      batchesRemaining: batches.length - i - 1,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const status = response.status;
+    try {
+      logDebug("sync_batch", "Sending request to Lunch Money API", {
+        batchIndex: i + 1,
+        url: LUNCHMONEY_API_URL,
+        transactionsCount: batch.length,
+      });
 
-      // Better error messages based on status code
-      let userMessage = `Lunch Money API error (${status})`;
-      if (status === 503) {
-        userMessage = "Lunch Money service is temporarily unavailable (503). Please try again in a few minutes.";
-      } else if (status === 401) {
-        userMessage = "Invalid Lunch Money API token. Please check your LUNCHMONEY_TOKEN.";
-      } else if (status === 500) {
-        userMessage = "Lunch Money server error. Please try again later.";
-      } else if (status >= 400 && status < 500) {
-        userMessage = `Lunch Money client error (${status}). Please check your configuration.`;
-      } else if (status >= 500) {
-        userMessage = `Lunch Money server error (${status}). The service may be experiencing issues.`;
+      const response = await fetch(LUNCHMONEY_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LUNCHMONEY_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          transactions: batch,
+          apply_rules: true,
+          check_for_recurring: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const status = response.status;
+
+        // Better error messages based on status code
+        let userMessage = `Lunch Money API error (${status})`;
+        if (status === 503) {
+          userMessage = "Lunch Money service is temporarily unavailable (503). Please try again in a few minutes.";
+        } else if (status === 401) {
+          userMessage = "Invalid Lunch Money API token. Please check your LUNCHMONEY_TOKEN.";
+        } else if (status === 500) {
+          userMessage = "Lunch Money server error. Please try again later.";
+        } else if (status >= 400 && status < 500) {
+          userMessage = `Lunch Money client error (${status}). Please check your configuration.`;
+        } else if (status >= 500) {
+          userMessage = `Lunch Money server error (${status}). The service may be experiencing issues.`;
+        }
+
+        logError("sync_batch", "Lunch Money API error", null, {
+          batchIndex: i + 1,
+          totalBatches: batches.length,
+          statusCode: status,
+          statusText: response.statusText,
+          errorText: errorText.substring(0, 500),
+          userMessage,
+        });
+
+        throw new Error(userMessage);
       }
 
-      // Log detailed error for debugging
-      console.error(JSON.stringify({
-        success: false,
-        error: userMessage,
-        details: `Status ${status}: ${errorText.substring(0, 200)}`,
-        step: "sync_lunchmoney",
-        statusCode: status,
-      }));
-
-      throw new Error(userMessage);
+      const result = await response.json();
+      logInfo("sync_batch", `Batch ${i + 1}/${batches.length} sent successfully`, {
+        batchIndex: i + 1,
+        totalBatches: batches.length,
+        transactionsInBatch: batch.length,
+        responseStatus: response.status,
+        hasResult: !!result,
+      });
+      results.push(result);
+    } catch (error) {
+      if (error.message.includes("Lunch Money")) {
+        throw error; // Re-throw Lunch Money errors
+      }
+      logError("sync_batch", "Failed to send batch to Lunch Money", error, {
+        batchIndex: i + 1,
+        totalBatches: batches.length,
+        transactionsInBatch: batch.length,
+      });
+      throw error;
     }
-
-    const result = await response.json();
-    results.push(result);
   }
+
+  logInfo("sync_lunchmoney", "All batches sent successfully", {
+    totalBatches: batches.length,
+    totalTransactions: transactions.length,
+    resultsCount: results.length,
+  });
 
   return results;
 }
@@ -731,11 +891,19 @@ async function sendToLunchMoney(transactions) {
  * Main sync function
  */
 async function sync() {
+  const syncStartTime = Date.now();
+  logInfo("sync_start", "Starting sync process", {
+    syncDays: SYNC_DAYS_PARSED,
+    accountNumber: accountNumber || "auto-detect",
+    assetId,
+  });
+
   let browser;
   try {
     // Launch browser
     browser = await launchBrowser();
     const page = await browser.newPage();
+    logDebug("sync_start", "New page created");
 
     // Login flow
     await login(page);
@@ -757,6 +925,11 @@ async function sync() {
     } = await determineAccountNumber(page, cookieMap, xsrfToken);
 
     accountNumber = finalAccountNumber;
+    logInfo("sync_progress", "Account determined", {
+      accountNumber: finalAccountNumber,
+      hasCookies: updatedCookies.size > 0,
+      hasXsrfToken: !!updatedToken,
+    });
 
     // Fetch transactions
     const { transactions } = await fetchTransactions(
@@ -771,6 +944,13 @@ async function sync() {
       const fromDate = new Date();
       fromDate.setDate(today.getDate() - SYNC_DAYS_PARSED);
 
+      logInfo("sync_complete", "No transactions found", {
+        accountNumber,
+        fromDate: formatDate(fromDate),
+        untilDate: formatDate(today),
+        syncDays: SYNC_DAYS_PARSED,
+      });
+
       const result = {
         success: true,
         message: `No transactions found for period ${formatDate(
@@ -784,6 +964,11 @@ async function sync() {
       return result;
     }
 
+    logInfo("sync_progress", "Transactions fetched, transforming for Lunch Money", {
+      transactionsCount: transactions.length,
+      accountNumber,
+    });
+
     // Transform transactions
     const today = new Date();
     const lmTransactions = transformTransactions(
@@ -791,9 +976,15 @@ async function sync() {
       formatDate(today)
     );
 
+    logInfo("sync_progress", "Transactions transformed", {
+      originalCount: transactions.length,
+      transformedCount: lmTransactions.length,
+    });
+
     // Send to Lunch Money
     await sendToLunchMoney(lmTransactions);
 
+    const syncDuration = Date.now() - syncStartTime;
     const result = {
       success: true,
       message: `Successfully synced ${lmTransactions.length} transactions`,
@@ -807,9 +998,16 @@ async function sync() {
       assetId,
     };
 
+    logInfo("sync_complete", "Sync completed successfully", {
+      ...result,
+      durationMs: syncDuration,
+      durationSeconds: Math.round(syncDuration / 1000),
+    });
+
     console.log(JSON.stringify(result));
     return result;
   } catch (error) {
+    const syncDuration = Date.now() - syncStartTime;
     const result = {
       success: false,
       error: error.message,
@@ -817,17 +1015,25 @@ async function sync() {
       stack: error.stack, // Include stack trace for debugging
     };
 
+    logError("sync_error", "Sync failed", error, {
+      step: error.step || "unknown",
+      durationMs: syncDuration,
+      accountNumber: accountNumber || "unknown",
+    });
+
     // Ensure error is logged to stderr for Docker logs
     console.error(JSON.stringify(result));
-
-    // Also log plain text for easier reading
-    console.error(`\n❌ ERROR: ${error.message}`);
-    console.error(`Step: ${error.step || 'unknown'}`);
 
     process.exit(1);
   } finally {
     if (browser) {
-      await browser.close();
+      logDebug("sync_cleanup", "Closing browser");
+      try {
+        await browser.close();
+        logDebug("sync_cleanup", "Browser closed successfully");
+      } catch (error) {
+        logError("sync_cleanup", "Failed to close browser", error);
+      }
     }
   }
 }
