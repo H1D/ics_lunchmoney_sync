@@ -3,8 +3,8 @@ version: "3.8"
 services:
   telegram-bot:
     build:
-      context: https://github.com/H1D/ics_lunchmoney_sync.git
-      dockerfile: telegram-bot/Dockerfile
+      context: https://github.com/H1D/ics_lunchmoney_sync.git#main:telegram-bot
+      dockerfile: Dockerfile
     container_name: telegram-bot
     restart: unless-stopped
     env_file:
