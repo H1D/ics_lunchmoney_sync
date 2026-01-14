@@ -752,12 +752,29 @@ function transformTransactions(transactions, untilDate) {
       tags.push(`ics:type:${t.typeOfPurchase}`);
     }
 
+    if (t.countryCode) {
+      tags.push(`ics:country:${t.countryCode}`);
+    }
+
+    if (t.lastFourDigits) {
+      tags.push(`ics:card:${t.lastFourDigits}`);
+    }
+
     tags.push(importTag);
 
     // Determine amount sign: negative for debits, positive for credits
     const amount = parseFloat(t.billingAmount);
     const signedAmount =
       t.debitCredit === "DEBIT" ? -Math.abs(amount) : Math.abs(amount);
+
+    // Build notes for foreign currency transactions
+    let notes = "";
+    if (t.sourceCurrency && t.sourceCurrency !== t.billingCurrency) {
+      notes = `Original: ${t.sourceAmount} ${t.sourceCurrency}`;
+    }
+
+    // Build unique external_id
+    const externalId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}`;
 
     return {
       date: t.transactionDate,
@@ -766,8 +783,8 @@ function transformTransactions(transactions, untilDate) {
       asset_id: assetId,
       category_name: t.merchantCategoryCodeDescription || undefined,
       tags: tags,
-      notes: "",
-      external_id: `${t.batchNr}-${t.batchSequenceNr}`,
+      notes: notes,
+      external_id: externalId,
     };
   });
 }

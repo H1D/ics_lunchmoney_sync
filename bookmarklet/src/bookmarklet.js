@@ -383,8 +383,14 @@
           transactionDate,
           description = "",
           billingAmount,
+          billingCurrency,
+          sourceAmount,
+          sourceCurrency,
           merchantCategoryCodeDescription,
           typeOfPurchase,
+          countryCode,
+          lastFourDigits,
+          processingTime,
           batchNr,
           batchSequenceNr,
         }) => ({
@@ -395,12 +401,16 @@
           category_name: merchantCategoryCodeDescription,
           tags: [
             merchantCategoryCodeDescription &&
-              `ics:merchantCategoryCodeDescription:${merchantCategoryCodeDescription}`,
-            typeOfPurchase && `ics:typeOfPurchase:${typeOfPurchase}`,
+              `ics:category:${merchantCategoryCodeDescription}`,
+            typeOfPurchase && `ics:type:${typeOfPurchase}`,
+            countryCode && `ics:country:${countryCode}`,
+            lastFourDigits && `ics:card:${lastFourDigits}`,
             importTag,
           ].filter(Boolean),
-          notes: "",
-          external_id: `${batchNr}-${batchSequenceNr}`,
+          notes: sourceCurrency && sourceCurrency !== billingCurrency
+            ? `Original: ${sourceAmount} ${sourceCurrency}`
+            : "",
+          external_id: `${transactionDate}-${processingTime || "000000"}-${batchNr}-${batchSequenceNr}-${billingAmount}`,
         })
       );
 
