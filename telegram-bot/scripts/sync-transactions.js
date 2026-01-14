@@ -857,6 +857,18 @@ async function sendToLunchMoney(transactions) {
       }
 
       const result = await response.json();
+
+      // API can return 200 with error body
+      if (result.error) {
+        logError("sync_batch", "Lunch Money API returned error", null, {
+          batchIndex: i + 1,
+          totalBatches: batches.length,
+          transactionsInBatch: batch.length,
+          error: result.error,
+        });
+        throw new Error(`Lunch Money API error: ${JSON.stringify(result.error)}`);
+      }
+
       const insertedCount = result.ids?.length || 0;
       logInfo("sync_batch", `Batch ${i + 1}/${batches.length} sent successfully`, {
         batchIndex: i + 1,
