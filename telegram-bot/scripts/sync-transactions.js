@@ -823,6 +823,7 @@ async function sendToLunchMoney(transactions) {
           transactions: batch,
           apply_rules: true,
           check_for_recurring: true,
+          skip_duplicates: true,
         }),
       });
 
