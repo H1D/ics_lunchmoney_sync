@@ -739,28 +739,10 @@ async function fetchTransactions(page, accountNumber, cookieMap, xsrfToken) {
  * Transform transactions for Lunch Money
  */
 function transformTransactions(transactions, untilDate) {
-  const importTag = `importedAt:${untilDate}`;
+  const importTag = `importedAt:${new Date().toISOString()}`;
 
   return transactions.map((t) => {
-    const tags = [];
-
-    if (t.merchantCategoryCodeDescription) {
-      tags.push(`ics:category:${t.merchantCategoryCodeDescription}`);
-    }
-
-    if (t.typeOfPurchase) {
-      tags.push(`ics:type:${t.typeOfPurchase}`);
-    }
-
-    if (t.countryCode) {
-      tags.push(`ics:country:${t.countryCode}`);
-    }
-
-    if (t.lastFourDigits) {
-      tags.push(`ics:card:${t.lastFourDigits}`);
-    }
-
-    tags.push(importTag);
+    const tags = [importTag];
 
     // Determine amount sign: negative for debits, positive for credits
     const amount = parseFloat(t.billingAmount);
