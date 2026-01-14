@@ -374,8 +374,8 @@
       totalFetched += bankData.length;
       progress.updateStats(totalFetched, totalSent);
 
-      // Prepare import tag
-      const importTag = `importedAt:${formatDate(today)}`;
+      // Prepare import tag with datetime
+      const importTag = `importedAt:${new Date().toISOString()}`;
 
       // Transform transactions for Lunch Money with modern syntax
       const lmTransactions = bankData.map(
@@ -387,9 +387,6 @@
           sourceAmount,
           sourceCurrency,
           merchantCategoryCodeDescription,
-          typeOfPurchase,
-          countryCode,
-          lastFourDigits,
           processingTime,
           batchNr,
           batchSequenceNr,
@@ -399,14 +396,7 @@
           amount: -Number(billingAmount),
           asset_id: ASSET_ID,
           category_name: merchantCategoryCodeDescription,
-          tags: [
-            merchantCategoryCodeDescription &&
-              `ics:category:${merchantCategoryCodeDescription}`,
-            typeOfPurchase && `ics:type:${typeOfPurchase}`,
-            countryCode && `ics:country:${countryCode}`,
-            lastFourDigits && `ics:card:${lastFourDigits}`,
-            importTag,
-          ].filter(Boolean),
+          tags: [importTag],
           notes: sourceCurrency && sourceCurrency !== billingCurrency
             ? `Original: ${sourceAmount} ${sourceCurrency}`
             : "",
