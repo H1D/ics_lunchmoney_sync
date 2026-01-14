@@ -857,12 +857,15 @@ async function sendToLunchMoney(transactions) {
       }
 
       const result = await response.json();
+      const insertedCount = result.ids?.length || 0;
       logInfo("sync_batch", `Batch ${i + 1}/${batches.length} sent successfully`, {
         batchIndex: i + 1,
         totalBatches: batches.length,
         transactionsInBatch: batch.length,
+        insertedCount,
+        skippedCount: batch.length - insertedCount,
         responseStatus: response.status,
-        hasResult: !!result,
+        response: result,
       });
       results.push(result);
     } catch (error) {
@@ -878,10 +881,12 @@ async function sendToLunchMoney(transactions) {
     }
   }
 
+  const totalInserted = results.reduce((sum, r) => sum + (r.ids?.length || 0), 0);
   logInfo("sync_lunchmoney", "All batches sent successfully", {
     totalBatches: batches.length,
     totalTransactions: transactions.length,
-    resultsCount: results.length,
+    totalInserted,
+    totalSkipped: transactions.length - totalInserted,
   });
 
   return results;
