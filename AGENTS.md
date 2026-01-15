@@ -1,5 +1,11 @@
 # ICS Lunch Money Sync Bot
 
+## IMPORTANT: Git Rules
+
+- **NEVER commit without asking the user first**
+- **NEVER include real personal data** (names, card numbers, transaction details) in docs or examples
+- Always use placeholder/fake data in documentation examples
+
 This project contains a Telegram bot that syncs ICS Bank (ABN AMRO) transactions to Lunch Money.
 
 ## Project Structure
@@ -50,4 +56,9 @@ All configuration is done via `.env` file (see `.env.example`):
 
 - Runs in headless mode by default (no visible browser)
 - Uses Puppeteer for browser automation (required for ICS bank login)
-- Transactions are deduplicated using `external_id` (batchNr-batchSequenceNr)
+- Transactions are deduplicated using `external_id` (date-time-batchNr-batchSequenceNr-amount)
+
+## Documentation
+
+- [Lunch Money API Notes](docs/lunch-money-api.md) - API gotchas and best practices
+- [ICS Transaction Fields](docs/ics-transaction-fields.md) - Available fields from ICS API
