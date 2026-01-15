@@ -4,9 +4,7 @@ A browser bookmarklet that syncs ICS Bank transactions to Lunch Money directly f
 
 ## Install Bookmarklet
 
-**[Click here to install the bookmarklet](https://getbookmarklets.com/scripts/add?source_url=https%3A%2F%2Fraw.githubusercontent.com%2FH1D%2Fics_lunchmoney_sync%2Fmain%2Fbookmarklet%2Fsrc%2Fbookmarklet.js)**
-
-Or drag this link to your bookmarks bar: [ICS => LunchMoney](https://getbookmarklets.com/scripts/add?source_url=https%3A%2F%2Fraw.githubusercontent.com%2FH1D%2Fics_lunchmoney_sync%2Fmain%2Fbookmarklet%2Fsrc%2Fbookmarklet.js)
+**[Click here to install the bookmarklet](https://getbookmarklets.com/scripts/add?source_url=https%3A%2F%2Fraw.githubusercontent.com%2FH1D%2Fics_lunchmoney_sync%2Fmain%2Fbookmarklet%2Fsrc%2Fbookmarklet.js)** (drag the [Install bookmarklet] button there)
 
 ## Project Structure
 
@@ -92,12 +90,7 @@ Values are stored in localStorage for future use.
 
 ## Demo
 
-Watch a video demonstration of the bookmarklet in action:
-
-<video width="800" height="450" controls>
-  <source src="https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4" type="video/mp4">
-  Your browser does not support the video tag. <a href="https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4">Download the video</a> instead.
-</video>
+[Watch video demo](https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4)
 
 ## Submission to getbookmarklets.com
 

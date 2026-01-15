@@ -22,8 +22,7 @@ Content-Type: application/json
 {
   "transactions": [...],
   "apply_rules": true,
-  "check_for_recurring": true,
-  "skip_duplicates": true
+  "check_for_recurring": true
 }
 ```
 
@@ -31,15 +30,15 @@ Content-Type: application/json
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `skip_duplicates` | false | Dedupe by date/payee/amount |
 | `apply_rules` | false | Apply existing rules |
 | `check_for_recurring` | false | Check for recurring expenses |
+| `skip_duplicates` | false | Dedupe by date/payee/amount (not needed if using `external_id`) |
 
 ### Deduplication
 
-- `skip_duplicates: true` dedupes by date, payee, amount
-- `external_id` deduplication happens **regardless** of this flag
+- `external_id` deduplication happens **automatically** - no flag needed
 - `external_id` must be unique per `asset_id`
+- `skip_duplicates` only needed if NOT using `external_id` (dedupes by date/payee/amount)
 
 ### Response
 
