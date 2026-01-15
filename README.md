@@ -25,12 +25,7 @@ bun install
 bun run watch  # Edit src/bookmarklet.js and auto-build
 ```
 
-📹 **Demo Video:** See the bookmarklet in action:
-
-<video width="800" height="450" controls>
-  <source src="https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4" type="video/mp4">
-  Your browser does not support the video tag. <a href="https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4">Download the video</a> instead.
-</video>
+[Watch video demo](https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4)
 
 ## Quick Start
 
