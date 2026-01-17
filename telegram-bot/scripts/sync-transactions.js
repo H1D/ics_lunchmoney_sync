@@ -736,11 +736,46 @@ async function fetchTransactions(page, accountNumber, cookieMap, xsrfToken) {
 }
 
 /**
+ * Create a tag in Lunch Money v2 API (returns existing if duplicate)
+ */
+async function createTag(tagName) {
+  const resp = await fetch("https://api.lunchmoney.dev/v2/tags", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LUNCHMONEY_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: tagName }),
+  });
+
+  const data = await resp.json();
+
+  // 201 = created, 400 with existing tag = already exists
+  if (resp.status === 201) {
+    logInfo("tag_created", `Created tag: ${tagName}`, { tagId: data.id });
+    return data.id;
+  }
+
+  // If tag exists, fetch it
+  if (resp.status === 400) {
+    const getResp = await fetch("https://api.lunchmoney.dev/v2/tags", {
+      headers: { Authorization: `Bearer ${LUNCHMONEY_TOKEN}` },
+    });
+    const { tags } = await getResp.json();
+    const existing = tags.find((t) => t.name === tagName);
+    if (existing) {
+      logInfo("tag_found", `Using existing tag: ${tagName}`, { tagId: existing.id });
+      return existing.id;
+    }
+  }
+
+  throw new Error(`Failed to create tag: ${resp.status}`);
+}
+
+/**
  * Transform transactions for Lunch Money v2 API
  */
-function transformTransactions(transactions, untilDate) {
-  const importTimestamp = new Date().toISOString();
-
+function transformTransactions(transactions, tagId) {
   return transactions.map((t) => {
     // Determine amount sign: positive for debits (expenses), negative for credits (income)
     // v2 API: positive = debit, negative = credit
@@ -748,10 +783,10 @@ function transformTransactions(transactions, untilDate) {
     const signedAmount =
       t.debitCredit === "DEBIT" ? Math.abs(amount) : -Math.abs(amount);
 
-    // Build notes for foreign currency transactions + import timestamp
-    let notes = `Imported: ${importTimestamp}`;
+    // Build notes for foreign currency transactions
+    let notes = "";
     if (t.sourceCurrency && t.sourceCurrency !== t.billingCurrency) {
-      notes = `Original: ${t.sourceAmount} ${t.sourceCurrency} | ${notes}`;
+      notes = `Original: ${t.sourceAmount} ${t.sourceCurrency}`;
     }
 
     // Build unique external_id
@@ -762,6 +797,7 @@ function transformTransactions(transactions, untilDate) {
       payee: t.description || "",
       amount: signedAmount,
       manual_account_id: assetId,
+      tag_ids: [tagId],
       notes: notes,
       external_id: externalId,
       status: "unreviewed",
@@ -982,12 +1018,12 @@ async function sync() {
       accountNumber,
     });
 
+    // Create import tag
+    const importTag = `importedAt:${new Date().toISOString()}`;
+    const tagId = await createTag(importTag);
+
     // Transform transactions
-    const today = new Date();
-    const lmTransactions = transformTransactions(
-      transactions,
-      formatDate(today)
-    );
+    const lmTransactions = transformTransactions(transactions, tagId);
 
     logInfo("sync_progress", "Transactions transformed", {
       originalCount: transactions.length,

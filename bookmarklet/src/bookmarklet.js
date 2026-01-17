@@ -374,8 +374,23 @@
       totalFetched += bankData.length;
       progress.updateStats(totalFetched, totalSent);
 
-      // Prepare import timestamp for notes
-      const importTimestamp = new Date().toISOString();
+      // Create import tag (or get existing)
+      const importTagName = `importedAt:${new Date().toISOString()}`;
+      let tagId;
+      try {
+        const tagResp = await fetch("https://api.lunchmoney.dev/v2/tags", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LUNCH_MONEY_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ name: importTagName }),
+        });
+        const tagData = await tagResp.json();
+        tagId = tagData.id;
+      } catch (e) {
+        console.error("Failed to create tag:", e);
+      }
 
       // Transform transactions for Lunch Money v2 API
       const lmTransactions = bankData.map(
@@ -392,15 +407,15 @@
         }) => {
           // v2 API: positive = debit (expense), negative = credit (income)
           const amount = Number(billingAmount);
-          let notes = `Imported: ${importTimestamp}`;
-          if (sourceCurrency && sourceCurrency !== billingCurrency) {
-            notes = `Original: ${sourceAmount} ${sourceCurrency} | ${notes}`;
-          }
+          const notes = sourceCurrency && sourceCurrency !== billingCurrency
+            ? `Original: ${sourceAmount} ${sourceCurrency}`
+            : "";
           return {
             date: transactionDate,
             payee: description,
             amount: amount,
             manual_account_id: Number(ASSET_ID),
+            tag_ids: tagId ? [tagId] : [],
             notes,
             external_id: `${transactionDate}-${processingTime || "000000"}-${batchNr}-${batchSequenceNr}-${billingAmount}`,
             status: "unreviewed",
