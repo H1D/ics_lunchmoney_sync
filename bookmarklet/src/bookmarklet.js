@@ -374,10 +374,10 @@
       totalFetched += bankData.length;
       progress.updateStats(totalFetched, totalSent);
 
-      // Prepare import tag with datetime
-      const importTag = `importedAt:${new Date().toISOString()}`;
+      // Prepare import timestamp for notes
+      const importTimestamp = new Date().toISOString();
 
-      // Transform transactions for Lunch Money with modern syntax
+      // Transform transactions for Lunch Money v2 API
       const lmTransactions = bankData.map(
         ({
           transactionDate,
@@ -386,25 +386,29 @@
           billingCurrency,
           sourceAmount,
           sourceCurrency,
-          merchantCategoryCodeDescription,
           processingTime,
           batchNr,
           batchSequenceNr,
-        }) => ({
-          date: transactionDate,
-          payee: description,
-          amount: -Number(billingAmount),
-          asset_id: ASSET_ID,
-          category_name: merchantCategoryCodeDescription,
-          tags: [importTag],
-          notes: sourceCurrency && sourceCurrency !== billingCurrency
-            ? `Original: ${sourceAmount} ${sourceCurrency}`
-            : "",
-          external_id: `${transactionDate}-${processingTime || "000000"}-${batchNr}-${batchSequenceNr}-${billingAmount}`,
-        })
+        }) => {
+          // v2 API: positive = debit (expense), negative = credit (income)
+          const amount = Number(billingAmount);
+          let notes = `Imported: ${importTimestamp}`;
+          if (sourceCurrency && sourceCurrency !== billingCurrency) {
+            notes = `Original: ${sourceAmount} ${sourceCurrency} | ${notes}`;
+          }
+          return {
+            date: transactionDate,
+            payee: description,
+            amount: amount,
+            manual_account_id: Number(ASSET_ID),
+            notes,
+            external_id: `${transactionDate}-${processingTime || "000000"}-${batchNr}-${batchSequenceNr}-${billingAmount}`,
+            status: "unreviewed",
+          };
+        }
       );
 
-      // Send to Lunch Money
+      // Send to Lunch Money v2 API
       if (lmTransactions.length > 0) {
         progress.updateStatus(
           `Sending ${lmTransactions.length} transactions to Lunch Money...`
@@ -416,7 +420,7 @@
         );
 
         const lmResp = await fetch(
-          "https://dev.lunchmoney.app/v1/transactions",
+          "https://api.lunchmoney.dev/v2/transactions",
           {
             method: "POST",
             headers: {
@@ -426,30 +430,34 @@
             body: JSON.stringify({
               transactions: lmTransactions,
               apply_rules: true,
-              check_for_recurring: true,
+              skip_duplicates: true,
             }),
           }
         );
 
-        if (!lmResp.ok) {
+        // v2 API returns 201 Created on success
+        if (!lmResp.ok && lmResp.status !== 201) {
+          const errorText = await lmResp.text();
           throw new Error(
-            `Lunch Money API error: ${lmResp.status} ${lmResp.statusText}`
+            `Lunch Money API error: ${lmResp.status} ${lmResp.statusText} - ${errorText.substring(0, 200)}`
           );
         }
 
+        // v2 response: { transactions: [...], skipped_duplicates: [...] }
         const lmResult = await lmResp.json();
-        totalSent += lmTransactions.length;
+        const inserted = lmResult.transactions?.length || 0;
+        const skipped = lmResult.skipped_duplicates?.length || 0;
+        totalSent += inserted;
         progress.updateStats(totalFetched, totalSent);
         progress.updateBatch(
           batchNumber,
           totalBatches,
-          `Batch ${batchNumber}/${totalBatches} complete • ${formatDate(
+          `Batch ${batchNumber}/${totalBatches} complete (${inserted} new, ${skipped} skipped) • ${formatDate(
             from
           )} → ${formatDate(until)}`
         );
         console.log(
-          `Interval ${formatDate(from)} – ${formatDate(until)}:`,
-          lmResult
+          `Interval ${formatDate(from)} – ${formatDate(until)}: ${inserted} inserted, ${skipped} skipped`
         );
       }
 

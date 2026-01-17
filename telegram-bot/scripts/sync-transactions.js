@@ -52,7 +52,7 @@ const assetId = parseInt(LUNCHMONEY_ASSET_ID);
 
 // ICS Bank base URL
 const ICS_BASE_URL = "https://www.icscards.nl";
-const LUNCHMONEY_API_URL = "https://dev.lunchmoney.app/v1/transactions";
+const LUNCHMONEY_API_URL = "https://api.lunchmoney.dev/v2/transactions";
 
 /**
  * Structured logging helper for sync script
@@ -736,23 +736,22 @@ async function fetchTransactions(page, accountNumber, cookieMap, xsrfToken) {
 }
 
 /**
- * Transform transactions for Lunch Money
+ * Transform transactions for Lunch Money v2 API
  */
 function transformTransactions(transactions, untilDate) {
-  const importTag = `importedAt:${new Date().toISOString()}`;
+  const importTimestamp = new Date().toISOString();
 
   return transactions.map((t) => {
-    const tags = [importTag];
-
-    // Determine amount sign: negative for debits, positive for credits
+    // Determine amount sign: positive for debits (expenses), negative for credits (income)
+    // v2 API: positive = debit, negative = credit
     const amount = parseFloat(t.billingAmount);
     const signedAmount =
-      t.debitCredit === "DEBIT" ? -Math.abs(amount) : Math.abs(amount);
+      t.debitCredit === "DEBIT" ? Math.abs(amount) : -Math.abs(amount);
 
-    // Build notes for foreign currency transactions
-    let notes = "";
+    // Build notes for foreign currency transactions + import timestamp
+    let notes = `Imported: ${importTimestamp}`;
     if (t.sourceCurrency && t.sourceCurrency !== t.billingCurrency) {
-      notes = `Original: ${t.sourceAmount} ${t.sourceCurrency}`;
+      notes = `Original: ${t.sourceAmount} ${t.sourceCurrency} | ${notes}`;
     }
 
     // Build unique external_id
@@ -762,25 +761,24 @@ function transformTransactions(transactions, untilDate) {
       date: t.transactionDate,
       payee: t.description || "",
       amount: signedAmount,
-      asset_id: assetId,
-      category_name: t.merchantCategoryCodeDescription || undefined,
-      tags: tags,
+      manual_account_id: assetId,
       notes: notes,
       external_id: externalId,
+      status: "unreviewed",
     };
   });
 }
 
 /**
- * Send transactions to Lunch Money in batches
+ * Send transactions to Lunch Money v2 API in batches
  */
 async function sendToLunchMoney(transactions) {
-  logInfo("sync_lunchmoney", `Sending ${transactions.length} transactions to Lunch Money...`, {
+  logInfo("sync_lunchmoney", `Sending ${transactions.length} transactions to Lunch Money v2...`, {
     totalTransactions: transactions.length,
-    assetId,
+    manualAccountId: assetId,
   });
 
-  const batchSize = 100;
+  const batchSize = 500; // v2 API supports up to 500 per request
   const batches = [];
 
   for (let i = 0; i < transactions.length; i += batchSize) {
@@ -806,7 +804,7 @@ async function sendToLunchMoney(transactions) {
     });
 
     try {
-      logDebug("sync_batch", "Sending request to Lunch Money API", {
+      logDebug("sync_batch", "Sending request to Lunch Money v2 API", {
         batchIndex: i + 1,
         url: LUNCHMONEY_API_URL,
         transactionsCount: batch.length,
@@ -821,11 +819,12 @@ async function sendToLunchMoney(transactions) {
         body: JSON.stringify({
           transactions: batch,
           apply_rules: true,
-          check_for_recurring: true,
+          skip_duplicates: true,
         }),
       });
 
-      if (!response.ok) {
+      // v2 API returns 201 Created on success
+      if (!response.ok && response.status !== 201) {
         const errorText = await response.text();
         const status = response.status;
 
@@ -835,6 +834,12 @@ async function sendToLunchMoney(transactions) {
           userMessage = "Lunch Money service is temporarily unavailable (503). Please try again in a few minutes.";
         } else if (status === 401) {
           userMessage = "Invalid Lunch Money API token. Please check your LUNCHMONEY_TOKEN.";
+        } else if (status === 400) {
+          userMessage = `Lunch Money bad request (400): ${errorText.substring(0, 200)}`;
+        } else if (status === 404) {
+          userMessage = "Lunch Money resource not found (404). Check your manual_account_id.";
+        } else if (status === 429) {
+          userMessage = "Lunch Money rate limit exceeded (429). Please try again later.";
         } else if (status === 500) {
           userMessage = "Lunch Money server error. Please try again later.";
         } else if (status >= 400 && status < 500) {
@@ -857,26 +862,17 @@ async function sendToLunchMoney(transactions) {
 
       const result = await response.json();
 
-      // API can return 200 with error body
-      if (result.error) {
-        logError("sync_batch", "Lunch Money API returned error", null, {
-          batchIndex: i + 1,
-          totalBatches: batches.length,
-          transactionsInBatch: batch.length,
-          error: result.error,
-        });
-        throw new Error(`Lunch Money API error: ${JSON.stringify(result.error)}`);
-      }
+      // v2 API returns { transactions: [...], skipped_duplicates: [...] }
+      const insertedCount = result.transactions?.length || 0;
+      const skippedCount = result.skipped_duplicates?.length || 0;
 
-      const insertedCount = result.ids?.length || 0;
       logInfo("sync_batch", `Batch ${i + 1}/${batches.length} sent successfully`, {
         batchIndex: i + 1,
         totalBatches: batches.length,
         transactionsInBatch: batch.length,
         insertedCount,
-        skippedCount: batch.length - insertedCount,
+        skippedCount,
         responseStatus: response.status,
-        response: result,
       });
       results.push(result);
     } catch (error) {
@@ -892,12 +888,13 @@ async function sendToLunchMoney(transactions) {
     }
   }
 
-  const totalInserted = results.reduce((sum, r) => sum + (r.ids?.length || 0), 0);
+  const totalInserted = results.reduce((sum, r) => sum + (r.transactions?.length || 0), 0);
+  const totalSkipped = results.reduce((sum, r) => sum + (r.skipped_duplicates?.length || 0), 0);
   logInfo("sync_lunchmoney", "All batches sent successfully", {
     totalBatches: batches.length,
     totalTransactions: transactions.length,
     totalInserted,
-    totalSkipped: transactions.length - totalInserted,
+    totalSkipped,
   });
 
   return results;
