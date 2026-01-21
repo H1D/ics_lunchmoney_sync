@@ -883,10 +883,9 @@ function transformTransactions(transactions, tagId) {
 
     // Build unique external_id
     // Set EXTERNAL_ID_SUFFIX env var to force reimport (e.g., "v2", "v3")
+    const suffix = process.env.EXTERNAL_ID_SUFFIX;
     const baseId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}`;
-    const externalId = process.env.EXTERNAL_ID_SUFFIX
-      ? `${baseId}-${process.env.EXTERNAL_ID_SUFFIX}`
-      : baseId;
+    const externalId = suffix ? `${baseId}-${suffix}` : baseId;
 
     return {
       date: t.transactionDate,
@@ -905,9 +904,13 @@ function transformTransactions(transactions, tagId) {
  * Send transactions to Lunch Money v2 API in batches
  */
 async function sendToLunchMoney(transactions) {
+  const sampleExternalId = transactions[0]?.external_id || 'none';
   logInfo("sync_lunchmoney", `Sending ${transactions.length} transactions to Lunch Money v2...`, {
     totalTransactions: transactions.length,
     manualAccountId: assetId,
+  });
+  logInfo("sync_lunchmoney", `External ID format: ${sampleExternalId}`, {
+    externalIdSuffix: process.env.EXTERNAL_ID_SUFFIX || 'not set',
   });
 
   const batchSize = 500; // v2 API supports up to 500 per request
