@@ -882,12 +882,7 @@ function transformTransactions(transactions, tagId) {
     }
 
     // Build unique external_id
-    // Note: Using date-based ID without import timestamp allows proper deduplication
-    // If you deleted transactions and want to re-import, change FORCE_REIMPORT env var
-    const baseId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}`;
-    const externalId = process.env.FORCE_REIMPORT
-      ? `${baseId}-reimport-${process.env.FORCE_REIMPORT}`
-      : baseId;
+    const externalId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}`;
 
     return {
       date: t.transactionDate,
