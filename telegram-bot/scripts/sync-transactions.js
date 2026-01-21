@@ -881,8 +881,8 @@ function transformTransactions(transactions, tagId) {
       notes = `Original: ${t.sourceAmount} ${t.sourceCurrency}`;
     }
 
-    // Build unique external_id
-    const externalId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}`;
+    // Build unique external_id (v2 - added version suffix for reimport compatibility)
+    const externalId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}-v2`;
 
     return {
       date: t.transactionDate,
