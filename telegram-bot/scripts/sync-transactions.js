@@ -948,10 +948,14 @@ async function sendToLunchMoney(transactions) {
         });
       }
 
+      // skip_duplicates dedupes by date/payee/amount (separate from external_id)
+      // external_id deduplication always happens automatically
+      const skipDuplicates = process.env.SKIP_DUPLICATES !== 'false';
+
       const requestBody = {
         transactions: batch,
         apply_rules: true,
-        skip_duplicates: true,
+        skip_duplicates: skipDuplicates,
       };
 
       logDebug("sync_batch_request", "Request payload", {
