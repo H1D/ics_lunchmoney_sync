@@ -881,8 +881,12 @@ function transformTransactions(transactions, tagId) {
       notes = `Original: ${t.sourceAmount} ${t.sourceCurrency}`;
     }
 
-    // Build unique external_id (v2 - added version suffix for reimport compatibility)
-    const externalId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}-v2`;
+    // Build unique external_id
+    // Set EXTERNAL_ID_SUFFIX env var to force reimport (e.g., "v2", "v3")
+    const baseId = `${t.transactionDate}-${t.processingTime || "000000"}-${t.batchNr}-${t.batchSequenceNr}-${t.billingAmount}`;
+    const externalId = process.env.EXTERNAL_ID_SUFFIX
+      ? `${baseId}-${process.env.EXTERNAL_ID_SUFFIX}`
+      : baseId;
 
     return {
       date: t.transactionDate,
