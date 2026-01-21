@@ -997,10 +997,11 @@ async function sync() {
       updatedToken
     );
 
+    const today = new Date();
+    const fromDate = new Date();
+    fromDate.setDate(today.getDate() - SYNC_DAYS_PARSED);
+
     if (transactions.length === 0) {
-      const today = new Date();
-      const fromDate = new Date();
-      fromDate.setDate(today.getDate() - SYNC_DAYS_PARSED);
 
       logInfo("sync_complete", "No transactions found", {
         accountNumber,
@@ -1048,9 +1049,7 @@ async function sync() {
       message: `Successfully synced ${lmTransactions.length} transactions`,
       transactionsCount: transactions.length,
       syncedCount: lmTransactions.length,
-      fromDate: formatDate(
-        new Date(Date.now() - SYNC_DAYS_PARSED * 24 * 60 * 60 * 1000)
-      ),
+      fromDate: formatDate(fromDate),
       untilDate: formatDate(today),
       accountNumber,
       assetId,
