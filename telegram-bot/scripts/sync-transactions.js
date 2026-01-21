@@ -747,37 +747,120 @@ async function fetchTransactions(page, accountNumber, cookieMap, xsrfToken) {
  * Create a tag in Lunch Money v2 API (returns existing if duplicate)
  */
 async function createTag(tagName) {
-  const resp = await fetch("https://api.lunchmoney.dev/v2/tags", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LUNCHMONEY_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name: tagName }),
-  });
+  logDebug("tag_create", `Creating tag: ${tagName}`);
 
-  const data = await resp.json();
-
-  // 201 = created, 400 with existing tag = already exists
-  if (resp.status === 201) {
-    logInfo("tag_created", `Created tag: ${tagName}`, { tagId: data.id });
-    return data.id;
-  }
-
-  // If tag exists, fetch it
-  if (resp.status === 400) {
-    const getResp = await fetch("https://api.lunchmoney.dev/v2/tags", {
-      headers: { Authorization: `Bearer ${LUNCHMONEY_TOKEN}` },
+  try {
+    const resp = await fetch("https://api.lunchmoney.dev/v2/tags", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LUNCHMONEY_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: tagName }),
     });
-    const { tags } = await getResp.json();
-    const existing = tags.find((t) => t.name === tagName);
-    if (existing) {
-      logInfo("tag_found", `Using existing tag: ${tagName}`, { tagId: existing.id });
-      return existing.id;
-    }
-  }
 
-  throw new Error(`Failed to create tag: ${resp.status}`);
+    const responseText = await resp.text();
+    logDebug("tag_create_response", "Tag creation response", {
+      status: resp.status,
+      statusText: resp.statusText,
+      responsePreview: responseText.substring(0, 200),
+    });
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      logError("tag_parse_error", "Failed to parse tag response", parseError, {
+        responseText: responseText.substring(0, 200),
+      });
+      throw new Error(`Invalid JSON response from Lunch Money tags endpoint: ${responseText.substring(0, 100)}`);
+    }
+
+    // 201 = created, 400 with existing tag = already exists
+    if (resp.status === 201) {
+      if (!data.id) {
+        logError("tag_missing_id", "Tag created but no ID returned", null, {
+          response: JSON.stringify(data).substring(0, 200),
+        });
+        throw new Error("Tag created but no ID returned from Lunch Money");
+      }
+      logInfo("tag_created", `Created tag: ${tagName}`, { tagId: data.id });
+      return data.id;
+    }
+
+    // Check for error in response
+    if (data.error) {
+      logDebug("tag_error_response", "Tag creation returned error", {
+        error: data.error,
+        status: resp.status,
+      });
+    }
+
+    // If tag exists, fetch it
+    if (resp.status === 400) {
+      logDebug("tag_fetch_existing", "Tag may already exist, fetching all tags");
+      const getResp = await fetch("https://api.lunchmoney.dev/v2/tags", {
+        headers: { Authorization: `Bearer ${LUNCHMONEY_TOKEN}` },
+      });
+
+      if (!getResp.ok) {
+        logError("tag_fetch_error", "Failed to fetch tags list", null, {
+          status: getResp.status,
+          statusText: getResp.statusText,
+        });
+        throw new Error(`Failed to fetch tags: ${getResp.status}`);
+      }
+
+      const getResponseText = await getResp.text();
+      let tagsData;
+      try {
+        tagsData = JSON.parse(getResponseText);
+      } catch (parseError) {
+        logError("tags_list_parse_error", "Failed to parse tags list response", parseError, {
+          responseText: getResponseText.substring(0, 200),
+        });
+        throw new Error("Failed to parse tags list from Lunch Money");
+      }
+
+      const tags = tagsData.tags || tagsData;
+      if (!Array.isArray(tags)) {
+        logError("tags_not_array", "Tags response is not an array", null, {
+          responseKeys: Object.keys(tagsData),
+          responsePreview: JSON.stringify(tagsData).substring(0, 200),
+        });
+        throw new Error("Unexpected tags response format from Lunch Money");
+      }
+
+      const existing = tags.find((t) => t.name === tagName);
+      if (existing) {
+        logInfo("tag_found", `Using existing tag: ${tagName}`, { tagId: existing.id });
+        return existing.id;
+      }
+
+      logError("tag_not_found", "Tag creation failed and tag not found in existing tags", null, {
+        tagName,
+        existingTagNames: tags.map(t => t.name).slice(0, 10),
+      });
+    }
+
+    // Log unexpected status
+    logError("tag_unexpected_status", "Unexpected response from tag creation", null, {
+      status: resp.status,
+      statusText: resp.statusText,
+      response: JSON.stringify(data).substring(0, 500),
+    });
+
+    throw new Error(`Failed to create tag: ${resp.status} - ${JSON.stringify(data).substring(0, 200)}`);
+  } catch (error) {
+    if (error.message.includes("Failed to create tag") || error.message.includes("Lunch Money")) {
+      throw error;
+    }
+    logError("tag_create_exception", "Exception during tag creation", error, {
+      tagName,
+      errorMessage: error.message,
+    });
+    throw error;
+  }
 }
 
 /**
@@ -840,19 +923,42 @@ async function sendToLunchMoney(transactions) {
 
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
-    logInfo("sync_batch", `Sending batch ${i + 1}/${batches.length} (${batch.length} transactions)...`, {
+
+    // Log before sending - use console.error directly to ensure order
+    const sendingMsg = `Sending batch ${i + 1}/${batches.length} (${batch.length} transactions) to Lunch Money...`;
+    console.error(formatLog('INFO', 'sync_batch_start', sendingMsg, {
       batchIndex: i + 1,
       totalBatches: batches.length,
       transactionsInBatch: batch.length,
-      batchesProcessed: i,
-      batchesRemaining: batches.length - i - 1,
-    });
+    }));
+    console.error(JSON.stringify({ step: 'sync_batch_start', message: sendingMsg }));
 
     try {
-      logDebug("sync_batch", "Sending request to Lunch Money v2 API", {
+      // Log first transaction for debugging (without sensitive data)
+      if (batch.length > 0) {
+        const sampleTx = batch[0];
+        logDebug("sync_batch_sample", "First transaction in batch", {
+          date: sampleTx.date,
+          amount: sampleTx.amount,
+          payee: sampleTx.payee?.substring(0, 30),
+          manual_account_id: sampleTx.manual_account_id,
+          external_id: sampleTx.external_id,
+          status: sampleTx.status,
+          has_tag_ids: Array.isArray(sampleTx.tag_ids) && sampleTx.tag_ids.length > 0,
+        });
+      }
+
+      const requestBody = {
+        transactions: batch,
+        apply_rules: true,
+        skip_duplicates: true,
+      };
+
+      logDebug("sync_batch_request", "Request payload", {
         batchIndex: i + 1,
         url: LUNCHMONEY_API_URL,
         transactionsCount: batch.length,
+        requestBodySize: JSON.stringify(requestBody).length,
       });
 
       const response = await fetch(LUNCHMONEY_API_URL, {
@@ -861,16 +967,23 @@ async function sendToLunchMoney(transactions) {
           Authorization: `Bearer ${LUNCHMONEY_TOKEN}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          transactions: batch,
-          apply_rules: true,
-          skip_duplicates: true,
-        }),
+        body: JSON.stringify(requestBody),
+      });
+
+      // Get raw response text first for debugging
+      const responseText = await response.text();
+
+      // Log raw response for debugging
+      logDebug("sync_batch_response_raw", "Raw API response", {
+        batchIndex: i + 1,
+        status: response.status,
+        statusText: response.statusText,
+        responseLength: responseText.length,
+        responsePreview: responseText.substring(0, 500),
       });
 
       // v2 API returns 201 Created on success
       if (!response.ok && response.status !== 201) {
-        const errorText = await response.text();
         const status = response.status;
 
         // Better error messages based on status code
@@ -880,7 +993,7 @@ async function sendToLunchMoney(transactions) {
         } else if (status === 401) {
           userMessage = "Invalid Lunch Money API token. Please check your LUNCHMONEY_TOKEN.";
         } else if (status === 400) {
-          userMessage = `Lunch Money bad request (400): ${errorText.substring(0, 200)}`;
+          userMessage = `Lunch Money bad request (400): ${responseText.substring(0, 200)}`;
         } else if (status === 404) {
           userMessage = "Lunch Money resource not found (404). Check your manual_account_id.";
         } else if (status === 429) {
@@ -893,54 +1006,146 @@ async function sendToLunchMoney(transactions) {
           userMessage = `Lunch Money server error (${status}). The service may be experiencing issues.`;
         }
 
-        logError("sync_batch", "Lunch Money API error", null, {
+        logError("sync_batch_error", "Lunch Money API error", null, {
           batchIndex: i + 1,
           totalBatches: batches.length,
           statusCode: status,
           statusText: response.statusText,
-          errorText: errorText.substring(0, 500),
+          responseBody: responseText.substring(0, 1000),
           userMessage,
         });
 
         throw new Error(userMessage);
       }
 
-      const result = await response.json();
+      // Parse JSON response
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        logError("sync_batch_parse_error", "Failed to parse Lunch Money response as JSON", parseError, {
+          batchIndex: i + 1,
+          responseText: responseText.substring(0, 500),
+        });
+        throw new Error(`Invalid JSON response from Lunch Money: ${responseText.substring(0, 200)}`);
+      }
+
+      // Check for error field in response (API might return 200/201 with error in body)
+      if (result.error) {
+        const errorMsg = Array.isArray(result.error) ? result.error.join(', ') : String(result.error);
+        logError("sync_batch_api_error", "Lunch Money returned error in response body", null, {
+          batchIndex: i + 1,
+          status: response.status,
+          errorField: errorMsg,
+          fullResponse: JSON.stringify(result).substring(0, 1000),
+        });
+        throw new Error(`Lunch Money API error: ${errorMsg}`);
+      }
 
       // v2 API returns { transactions: [...], skipped_duplicates: [...] }
-      const insertedCount = result.transactions?.length || 0;
-      const skippedCount = result.skipped_duplicates?.length || 0;
+      // v1 API returns { ids: [...] }
+      // Handle both formats for compatibility
+      let insertedCount = 0;
+      let skippedCount = 0;
 
-      logInfo("sync_batch", `Batch ${i + 1}/${batches.length} sent successfully`, {
+      if (result.transactions) {
+        // v2 format
+        insertedCount = result.transactions.length;
+        skippedCount = result.skipped_duplicates?.length || 0;
+      } else if (result.ids) {
+        // v1 format (fallback)
+        insertedCount = result.ids.length;
+        skippedCount = 0;
+      } else {
+        // Unknown format - log warning
+        logError("sync_batch_unknown_format", "Unexpected response format from Lunch Money", null, {
+          batchIndex: i + 1,
+          responseKeys: Object.keys(result),
+          fullResponse: JSON.stringify(result).substring(0, 1000),
+        });
+      }
+
+      // Log successful response with details
+      const successMsg = `Batch ${i + 1}/${batches.length}: ${insertedCount} inserted, ${skippedCount} skipped (of ${batch.length} sent)`;
+      console.error(formatLog('INFO', 'sync_batch_complete', successMsg, {
         batchIndex: i + 1,
         totalBatches: batches.length,
         transactionsInBatch: batch.length,
         insertedCount,
         skippedCount,
         responseStatus: response.status,
-      });
+      }));
+      console.error(JSON.stringify({
+        step: 'sync_batch_complete',
+        message: successMsg,
+        insertedCount,
+        skippedCount,
+      }));
+
+      // Warn if nothing was inserted
+      if (insertedCount === 0 && batch.length > 0) {
+        logError("sync_batch_warning", "No transactions were inserted - all may have been skipped as duplicates or rejected", null, {
+          batchIndex: i + 1,
+          transactionsSent: batch.length,
+          skippedCount,
+          responseStatus: response.status,
+          fullResponse: JSON.stringify(result).substring(0, 1000),
+        });
+      }
+
       results.push(result);
     } catch (error) {
       if (error.message.includes("Lunch Money")) {
         throw error; // Re-throw Lunch Money errors
       }
-      logError("sync_batch", "Failed to send batch to Lunch Money", error, {
+      logError("sync_batch_failed", "Failed to send batch to Lunch Money", error, {
         batchIndex: i + 1,
         totalBatches: batches.length,
         transactionsInBatch: batch.length,
+        errorMessage: error.message,
+        errorStack: error.stack,
       });
       throw error;
     }
   }
 
-  const totalInserted = results.reduce((sum, r) => sum + (r.transactions?.length || 0), 0);
-  const totalSkipped = results.reduce((sum, r) => sum + (r.skipped_duplicates?.length || 0), 0);
-  logInfo("sync_lunchmoney", "All batches sent successfully", {
+  // Calculate totals from all batches
+  let totalInserted = 0;
+  let totalSkipped = 0;
+
+  for (const r of results) {
+    if (r.transactions) {
+      totalInserted += r.transactions.length;
+      totalSkipped += r.skipped_duplicates?.length || 0;
+    } else if (r.ids) {
+      totalInserted += r.ids.length;
+    }
+  }
+
+  // Log final summary
+  const summaryMsg = `Sync complete: ${totalInserted} inserted, ${totalSkipped} skipped (of ${transactions.length} total)`;
+  console.error(formatLog('INFO', 'sync_lunchmoney_complete', summaryMsg, {
     totalBatches: batches.length,
     totalTransactions: transactions.length,
     totalInserted,
     totalSkipped,
-  });
+  }));
+  console.error(JSON.stringify({
+    step: 'sync_lunchmoney_complete',
+    message: summaryMsg,
+    totalInserted,
+    totalSkipped,
+  }));
+
+  // Warn if totals don't add up
+  if (totalInserted + totalSkipped !== transactions.length) {
+    logError("sync_count_mismatch", "Transaction count mismatch - some transactions may have been silently rejected", null, {
+      totalSent: transactions.length,
+      totalInserted,
+      totalSkipped,
+      difference: transactions.length - totalInserted - totalSkipped,
+    });
+  }
 
   return results;
 }
@@ -1041,19 +1246,43 @@ async function sync() {
     });
 
     // Send to Lunch Money
-    await sendToLunchMoney(lmTransactions);
+    const syncResults = await sendToLunchMoney(lmTransactions);
+
+    // Calculate totals from results
+    let totalInserted = 0;
+    let totalSkipped = 0;
+    for (const r of syncResults) {
+      if (r.transactions) {
+        totalInserted += r.transactions.length;
+        totalSkipped += r.skipped_duplicates?.length || 0;
+      } else if (r.ids) {
+        totalInserted += r.ids.length;
+      }
+    }
 
     const syncDuration = Date.now() - syncStartTime;
     const result = {
       success: true,
-      message: `Successfully synced ${lmTransactions.length} transactions`,
+      message: `Synced: ${totalInserted} inserted, ${totalSkipped} skipped (of ${lmTransactions.length} total)`,
       transactionsCount: transactions.length,
       syncedCount: lmTransactions.length,
+      insertedCount: totalInserted,
+      skippedCount: totalSkipped,
       fromDate: formatDate(fromDate),
       untilDate: formatDate(today),
       accountNumber,
       assetId,
     };
+
+    // Warn if nothing was inserted
+    if (totalInserted === 0 && lmTransactions.length > 0) {
+      result.warning = "No transactions were inserted - all were likely skipped as duplicates";
+      logError("sync_no_inserts", "Sync completed but no transactions were inserted", null, {
+        totalSent: lmTransactions.length,
+        totalSkipped,
+        message: result.warning,
+      });
+    }
 
     logInfo("sync_complete", "Sync completed successfully", {
       ...result,
