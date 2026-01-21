@@ -18,15 +18,16 @@ function formatTimestamp() {
   return new Date().toISOString();
 }
 
+// Simple text format for better readability in Docker logs
 function formatLog(level, message, context = {}) {
   const timestamp = formatTimestamp();
-  const logEntry = {
-    timestamp,
-    level,
-    message,
-    ...context,
-  };
-  return JSON.stringify(logEntry);
+  const contextStr = Object.keys(context).length > 0 
+    ? ' | ' + Object.entries(context)
+        .filter(([k, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`)
+        .join(' ')
+    : '';
+  return `${timestamp} [${level}] ${message}${contextStr}`;
 }
 
 const logger = {

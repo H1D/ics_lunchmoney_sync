@@ -55,35 +55,43 @@ const ICS_BASE_URL = "https://www.icscards.nl";
 const LUNCHMONEY_API_URL = "https://api.lunchmoney.dev/v2/transactions";
 
 /**
- * Structured logging helper for sync script
+ * Simple text logging for sync script (Bun-friendly)
  */
-function log(level, step, message, context = {}) {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    level,
-    step,
-    message,
-    ...context,
-  };
-  console.error(JSON.stringify(logEntry));
+function formatLog(level, step, message, context = {}) {
+  const timestamp = new Date().toISOString();
+  const contextParts = [];
+  
+  // Only include important context fields to avoid clutter
+  const importantFields = ['accountNumber', 'transactionsCount', 'chunkIndex', 'totalChunks', 'error'];
+  for (const [key, value] of Object.entries(context)) {
+    if (importantFields.includes(key) && value !== undefined) {
+      contextParts.push(`${key}=${value}`);
+    }
+  }
+  
+  const contextStr = contextParts.length > 0 ? ' | ' + contextParts.join(' ') : '';
+  return `${timestamp} [${level}] ${step}: ${message}${contextStr}`;
 }
 
-function logInfo(step, message, context) {
-  log('INFO', step, message, context);
+function logInfo(step, message, context = {}) {
+  console.error(formatLog('INFO', step, message, context));
+  
+  // Also log as JSON for bot parsing (backward compatibility)
+  console.error(JSON.stringify({ step, message }));
 }
 
 function logError(step, message, error, context = {}) {
-  log('ERROR', step, message, {
+  const errorContext = {
     ...context,
     error: error?.message || String(error),
-    errorName: error?.name,
-    errorCode: error?.code,
-    errorStack: error?.stack ? error.stack.split('\n').slice(0, 3).join('\n') : undefined,
-  });
+  };
+  console.error(formatLog('ERROR', step, message, errorContext));
 }
 
-function logDebug(step, message, context) {
-  log('DEBUG', step, message, context);
+function logDebug(step, message, context = {}) {
+  if (process.env.LOG_LEVEL === 'DEBUG') {
+    console.error(formatLog('DEBUG', step, message, context));
+  }
 }
 
 // Puppeteer configuration
