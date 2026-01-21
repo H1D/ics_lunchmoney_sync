@@ -785,11 +785,12 @@ async function createTag(tagName) {
  */
 function transformTransactions(transactions, tagId) {
   return transactions.map((t) => {
-    // Determine amount sign: positive for debits (expenses), negative for credits (income)
-    // v2 API: positive = debit, negative = credit
+    // Determine amount sign for Lunch Money v2 API:
+    // NEGATIVE amounts = expenses (debits, money out)
+    // POSITIVE amounts = income (credits, money in)
     const amount = parseFloat(t.billingAmount);
     const signedAmount =
-      t.debitCredit === "DEBIT" ? Math.abs(amount) : -Math.abs(amount);
+      t.debitCredit === "DEBIT" ? -Math.abs(amount) : Math.abs(amount);
 
     // Build notes for foreign currency transactions
     let notes = "";
