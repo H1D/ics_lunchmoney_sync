@@ -10,8 +10,8 @@ const LOG_LEVELS = {
   ERROR: 3,
 };
 
-const currentLevel = process.env.LOG_LEVEL 
-  ? LOG_LEVELS[process.env.LOG_LEVEL.toUpperCase()] || LOG_LEVELS.INFO
+const currentLevel = process.env.LOG_LEVEL
+  ? LOG_LEVELS[process.env.LOG_LEVEL.toUpperCase()] ?? LOG_LEVELS.INFO
   : LOG_LEVELS.INFO;
 
 function formatTimestamp() {
