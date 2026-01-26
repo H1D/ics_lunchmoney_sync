@@ -303,7 +303,8 @@ bot.on('callback_query', async (query) => {
     const now = Date.now();
 
     // Log all stderr to console for Docker logs (but throttle if too verbose)
-    if (now - lastLogTime > 1000 || dataStr.includes('step')) {
+    // Always log DEBUG-level messages and step updates
+    if (now - lastLogTime > 1000 || dataStr.includes('step') || dataStr.includes('DEBUG')) {
       logger.debug('Sync script stderr', {
         data: dataStr.trim().substring(0, 500),
         stderrLength: stderr.length,
