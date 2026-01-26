@@ -875,6 +875,15 @@ function transformTransactions(transactions, tagId) {
     const signedAmount =
       t.debitCredit === "DEBIT" ? -Math.abs(amount) : Math.abs(amount);
 
+    // Debug log for each transaction to verify debitCredit from ICS
+    logDebug("transform_transaction", "Processing transaction", {
+      date: t.transactionDate,
+      description: t.description?.substring(0, 50),
+      billingAmount: t.billingAmount,
+      debitCredit: t.debitCredit,
+      signedAmount,
+    });
+
     // Build notes for foreign currency transactions
     let notes = "";
     if (t.sourceCurrency && t.sourceCurrency !== t.billingCurrency) {
