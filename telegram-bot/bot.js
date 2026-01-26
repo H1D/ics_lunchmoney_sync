@@ -17,14 +17,59 @@ logger.info('Initializing Telegram bot', {
   tokenPrefix: TOKEN.substring(0, 10) + '...',
 });
 
-const bot = new TelegramBot(TOKEN, { polling: true });
+const bot = new TelegramBot(TOKEN, {
+  polling: {
+    autoStart: true,
+    params: {
+      timeout: 30,
+    },
+  },
+});
 
-// Handle polling errors
-bot.on('polling_error', (error) => {
+// Track consecutive errors for backoff
+let consecutiveErrors = 0;
+const MAX_BACKOFF_MS = 60000;
+
+// Handle polling errors with restart logic
+bot.on('polling_error', async (error) => {
+  consecutiveErrors++;
+  const backoffMs = Math.min(1000 * Math.pow(2, consecutiveErrors - 1), MAX_BACKOFF_MS);
+
   logger.telegram.error('polling_error', error, {
     errorCode: error.code,
     errorMessage: error.message,
+    consecutiveErrors,
+    backoffMs,
   });
+
+  // Restart polling after backoff
+  if (error.code === 'ETELEGRAM' || error.code === 'EFATAL') {
+    logger.warn('Critical polling error, restarting polling...', { backoffMs });
+
+    try {
+      await bot.stopPolling();
+    } catch (stopErr) {
+      logger.warn('Error stopping polling', { error: stopErr.message });
+    }
+
+    setTimeout(async () => {
+      try {
+        await bot.startPolling();
+        logger.info('Polling restarted successfully');
+      } catch (startErr) {
+        logger.error('Failed to restart polling, exiting...', startErr);
+        process.exit(1); // Let Docker restart us
+      }
+    }, backoffMs);
+  }
+});
+
+// Reset error counter on successful message
+bot.on('message', () => {
+  if (consecutiveErrors > 0) {
+    logger.debug('Resetting error counter after successful message');
+    consecutiveErrors = 0;
+  }
 });
 
 // Handle webhook errors
