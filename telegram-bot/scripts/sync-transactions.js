@@ -62,7 +62,8 @@ function formatLog(level, step, message, context = {}) {
   const contextParts = [];
   
   // Only include important context fields to avoid clutter
-  const importantFields = ['accountNumber', 'transactionsCount', 'chunkIndex', 'totalChunks', 'error'];
+  const importantFields = ['accountNumber', 'transactionsCount', 'chunkIndex', 'totalChunks', 'error',
+    'date', 'description', 'billingAmount', 'debitCredit', 'signedAmount'];
   for (const [key, value] of Object.entries(context)) {
     if (importantFields.includes(key) && value !== undefined) {
       contextParts.push(`${key}=${value}`);
