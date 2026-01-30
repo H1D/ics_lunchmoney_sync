@@ -58,6 +58,20 @@ All configuration is done via `.env` file (see `.env.example`):
 - Uses Puppeteer for browser automation (required for ICS bank login)
 - Transactions are deduplicated using `external_id` (date-time-batchNr-batchSequenceNr-amount)
 
+## Common Pitfalls
+
+### JavaScript: 0 is falsy - don't use `||` for numeric defaults
+
+```javascript
+// BAD - LOG_LEVELS.DEBUG is 0, and 0 || fallback returns fallback!
+const level = LOG_LEVELS[name] || LOG_LEVELS.INFO;  // DEBUG becomes INFO!
+
+// GOOD - use nullish coalescing
+const level = LOG_LEVELS[name] ?? LOG_LEVELS.INFO;  // DEBUG stays 0
+```
+
+This caused LOG_LEVEL=DEBUG to silently become INFO because `0 || 1 = 1`.
+
 ## Documentation
 
 - [Lunch Money API Notes](docs/lunch-money-api.md) - API gotchas and best practices
