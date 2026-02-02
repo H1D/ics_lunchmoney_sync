@@ -406,9 +406,8 @@
           batchSequenceNr,
         }) => {
           // Lunch Money v2 API: negative = expense, positive = income
-          // ICS billingAmount: positive = charge, negative = refund
-          // So we negate the amount
-          const amount = -Number(billingAmount);
+          // ICS billingAmount already matches this convention
+          const amount = Number(billingAmount);
           const notes = sourceCurrency && sourceCurrency !== billingCurrency
             ? `Original: ${sourceAmount} ${sourceCurrency}`
             : "";

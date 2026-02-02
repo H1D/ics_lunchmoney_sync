@@ -873,13 +873,11 @@ function transformTransactions(transactions, tagId) {
     // NEGATIVE amounts = expenses (debits, money out)
     // POSITIVE amounts = income (credits, money in)
     //
-    // ICS billingAmount convention:
-    // POSITIVE = charge/debit (money out) → Lunch Money NEGATIVE
-    // NEGATIVE = refund/credit (money in) → Lunch Money POSITIVE
-    //
-    // So we just negate the amount (debitCredit field is unreliable/missing)
+    // ICS billingAmount already matches Lunch Money convention:
+    // NEGATIVE = charge/expense
+    // POSITIVE = refund/income
     const amount = parseFloat(t.billingAmount);
-    const signedAmount = -amount;
+    const signedAmount = amount;
 
     // Debug log for each transaction to verify debitCredit from ICS
     logDebug("transform_transaction", "Processing transaction", {
