@@ -16,5 +16,3 @@ A browser bookmarklet that syncs ICS Bank (ABN AMRO) credit card transactions to
 | Setup | Sync progress |
 |-------|---------------|
 | ![Setup dialog](screenshot-setup.png) | ![Sync progress](screenshot-sync.png) |
-
-![Demo](usage.gif)
