@@ -1,6 +1,7 @@
 // @name ICS => LunchMoney
-// @description Sync ICS Bank transactions to Lunch Money - fetches transactions with progress tracking
-// @image https://lunchmoney.app/favicon.ico
+// @description Sync ICS Bank (ABN AMRO) transactions to Lunch Money. Setup dialog with account dropdowns, configurable sync period, and progress tracking with duplicate detection.
+// @image https://raw.githubusercontent.com/H1D/ics_lunchmoney_sync/main/bookmarklet/screenshot-setup.png
+// @video https://raw.githubusercontent.com/H1D/ics_lunchmoney_sync/main/bookmarklet/usage.mp4
 
 (async () => {
   // Load Tailwind CSS if not already loaded
