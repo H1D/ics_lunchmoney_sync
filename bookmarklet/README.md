@@ -61,4 +61,4 @@ bun run bookmarklet:watch
 
 ## Demo
 
-[▶ Watch demo video](https://github.com/H1D/ics_lunchmoney_sync/blob/main/bookmarklet/usage.mp4)
+![Demo](usage.gif)
