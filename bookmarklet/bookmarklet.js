@@ -400,10 +400,11 @@
       dialog,
       updateStatus: (t) => (status.textContent = t),
       updateProgress: (p) => (progressFill.style.width = `${p}%`),
-      updateStats: (fetched, sent) => {
+      updateStats: (fetched, sent, skipped) => {
         stats.innerHTML = `
           <div>Fetched from ICS: <strong>${fetched}</strong></div>
           <div>Sent to Lunch Money: <strong>${sent}</strong></div>
+          ${skipped ? `<div>Skipped (duplicates): <strong>${skipped}</strong></div>` : ""}
         `;
       },
       updateBatch: (cur, total, info) => {
@@ -423,6 +424,7 @@
   let until = new Date(today);
   let totalFetched = 0;
   let totalSent = 0;
+  let totalSkipped = 0;
   const totalDays = Math.ceil((today - cutoff) / (1000 * 60 * 60 * 24));
   let processedDays = 0;
   let batchNumber = 0;
@@ -486,7 +488,7 @@
       if (!Array.isArray(bankData)) break;
 
       totalFetched += bankData.length;
-      progress.updateStats(totalFetched, totalSent);
+      progress.updateStats(totalFetched, totalSent, totalSkipped);
 
       // Create import tag
       const tagName = `importedAt:${new Date().toISOString()}`;
@@ -567,7 +569,8 @@
         const inserted = result.transactions?.length || 0;
         const skipped = result.skipped_duplicates?.length || 0;
         totalSent += inserted;
-        progress.updateStats(totalFetched, totalSent);
+        totalSkipped += skipped;
+        progress.updateStats(totalFetched, totalSent, totalSkipped);
         progress.updateBatch(
           batchNumber,
           totalBatches,
@@ -584,13 +587,13 @@
 
     progress.updateProgress(100);
     progress.updateStatus("Sync complete!");
-    progress.updateStats(totalFetched, totalSent);
+    progress.updateStats(totalFetched, totalSent, totalSkipped);
 
     setTimeout(() => {
       progress.close();
-      showPopup(
-        `Sync done: ${totalFetched} fetched, ${totalSent} sent to Lunch Money.`
-      );
+      const parts = [`${totalFetched} fetched`, `${totalSent} new`];
+      if (totalSkipped) parts.push(`${totalSkipped} duplicates skipped`);
+      showPopup(`Sync done: ${parts.join(", ")}.`);
     }, 1500);
   } catch (err) {
     console.error("Sync error:", err);
