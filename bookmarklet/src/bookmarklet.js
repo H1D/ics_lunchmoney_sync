@@ -1,14 +1,9 @@
 // @name ICS => LunchMoney
-// @description Sync ICS Bank transactions to Lunch Money - fetches last 50 days of transactions with progress tracking
+// @description Sync ICS Bank transactions to Lunch Money - fetches transactions with progress tracking
 // @image https://lunchmoney.app/favicon.ico
-// @video https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4
 
 (async () => {
-  const today = new Date();
-  const cutoff = new Date(today);
-  cutoff.setDate(cutoff.getDate() - 50); // Latest 50 days
-
-  // Load Tailwind CSS if not already loaded and wait for it
+  // Load Tailwind CSS if not already loaded
   if (!document.getElementById("tw-cdn")) {
     await new Promise((resolve) => {
       const tw = Object.assign(document.createElement("script"), {
@@ -20,82 +15,20 @@
     });
   }
 
-  // Modal UI using native dialog element
-  const showModal = (title, message, placeholder, isPassword = false) =>
-    new Promise((resolve) => {
-      const dialog = document.createElement("dialog");
-      dialog.className =
-        "backdrop:bg-black/50 bg-white rounded-xl p-6 max-w-md w-[90%] shadow-2xl";
+  // --- UI Helpers ---
 
-      const titleEl = Object.assign(document.createElement("h2"), {
-        textContent: title,
-        className: "mb-4 text-xl font-semibold text-gray-900",
-      });
-
-      const messageEl = Object.assign(document.createElement("div"), {
-        innerHTML: message,
-        className: "mb-5 text-sm leading-relaxed text-gray-600",
-      });
-
-      const input = Object.assign(document.createElement("input"), {
-        type: isPassword ? "password" : "text",
-        placeholder,
-        className:
-          "w-full px-3 py-3 border-2 border-gray-200 rounded-lg text-sm mb-4 font-mono focus:outline-none focus:border-green-500",
-      });
-
-      const submitBtn = Object.assign(document.createElement("button"), {
-        textContent: "Save",
-        className:
-          "bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition",
-        onclick: () => {
-          const value = input.value.trim();
-          if (value) {
-            dialog.close();
-            dialog.remove();
-            resolve(value);
-          }
-        },
-      });
-
-      input.addEventListener(
-        "keypress",
-        (e) => e.key === "Enter" && submitBtn.click()
-      );
-
-      // ESC key closes without saving
-      dialog.addEventListener("cancel", (e) => {
-        e.preventDefault();
-      });
-
-      const buttonContainer = Object.assign(document.createElement("div"), {
-        className: "flex gap-3 justify-end",
-      });
-      buttonContainer.append(submitBtn);
-
-      dialog.append(titleEl, messageEl, input, buttonContainer);
-      document.body.append(dialog);
-      dialog.showModal();
-
-      queueMicrotask(() => input.focus());
-    });
-
-  // Error dialog for user-friendly error messages
-  const showErrorDialog = (title, message) => {
+  const showError = (title, message) => {
     const dialog = document.createElement("dialog");
     dialog.className =
       "backdrop:bg-black/50 bg-white rounded-xl p-6 max-w-md w-[90%] shadow-2xl";
-
     const titleEl = Object.assign(document.createElement("h2"), {
       textContent: title,
       className: "mb-4 text-xl font-semibold text-red-600",
     });
-
     const messageEl = Object.assign(document.createElement("div"), {
       innerHTML: message,
       className: "mb-5 text-sm leading-relaxed text-gray-600",
     });
-
     const closeBtn = Object.assign(document.createElement("button"), {
       textContent: "Close",
       className:
@@ -105,17 +38,13 @@
         dialog.remove();
       },
     });
-
-    const buttonContainer = Object.assign(document.createElement("div"), {
+    const btnRow = Object.assign(document.createElement("div"), {
       className: "flex gap-3 justify-end",
     });
-    buttonContainer.append(closeBtn);
-
-    dialog.append(titleEl, messageEl, buttonContainer);
+    btnRow.append(closeBtn);
+    dialog.append(titleEl, messageEl, btnRow);
     document.body.append(dialog);
     dialog.showModal();
-
-    // ESC key closes
     dialog.addEventListener("cancel", (e) => {
       e.preventDefault();
       dialog.close();
@@ -123,99 +52,362 @@
     });
   };
 
-  // Get or request credentials with modern async pattern
-  const getOrPrompt = async (
-    key,
-    title,
-    message,
-    placeholder,
-    isPassword = false
-  ) => {
-    const value = localStorage.getItem(key);
-    if (value) return value;
-    const newValue = await showModal(title, message, placeholder, isPassword);
-    localStorage.setItem(key, newValue);
-    return newValue;
+  const showPopup = (msg) => {
+    const el = Object.assign(document.createElement("div"), {
+      textContent: msg,
+      className:
+        "fixed bottom-5 right-5 px-5 py-3 bg-gray-800 text-white rounded-lg z-[9999]",
+    });
+    document.body.append(el);
+    setTimeout(() => el.remove(), 10000);
   };
 
-  const ASSET_ID = await getOrPrompt(
-    "LUNCHMONEY_ASSET_ID",
-    "🏦 Lunch Money Asset ID",
-    `Where to find your Asset ID:<br><br>1. Open <a href="https://my.lunchmoney.app/" target="_blank" class="text-green-600 hover:underline">Lunch Money</a><br>2. Click on your ICS/ABN AMRO account<br>3. The Asset ID is in the URL:<br><code class="bg-gray-100 px-2 py-1 rounded block mt-2">https://my.lunchmoney.app/transactions/...?<strong>asset=12345</strong></code><br>Use the number after <code class="bg-gray-100 px-1">asset=</code>`,
-    "Example: 12345"
-  );
+  const formatDate = (d) => new Intl.DateTimeFormat("sv-SE").format(d);
 
-  const LUNCH_MONEY_TOKEN = await getOrPrompt(
-    "LUNCHMONEY_TOKEN",
-    "🔑 Lunch Money API Token",
-    `Where to get your token:<br><br>1. Open <a href="https://my.lunchmoney.app/developers" target="_blank" class="text-green-600 hover:underline">https://my.lunchmoney.app/developers</a><br>2. Click the <strong>"Request new access token"</strong> button<br>3. Copy the generated token`,
-    "Paste your API token",
-    true
-  );
+  // --- Setup Dialog ---
 
-  // Modern date formatting using Intl API
-  const formatDate = (d) => new Intl.DateTimeFormat("sv-SE").format(d); // ISO format YYYY-MM-DD
+  const showSetupDialog = () =>
+    new Promise((resolve) => {
+      const saved = {
+        token: localStorage.getItem("LUNCHMONEY_TOKEN") || "",
+        assetId: localStorage.getItem("LUNCHMONEY_ASSET_ID") || "",
+        days: localStorage.getItem("ICS_SYNC_DAYS") || "50",
+      };
 
-  // Progress dialog overlay
+      const dialog = document.createElement("dialog");
+      dialog.className =
+        "backdrop:bg-black/50 bg-white rounded-xl p-6 max-w-lg w-[90%] shadow-2xl";
+
+      const title = Object.assign(document.createElement("h2"), {
+        textContent: "ICS → Lunch Money Sync",
+        className: "mb-5 text-xl font-semibold text-gray-900",
+      });
+
+      // --- Token field ---
+      const tokenLabel = Object.assign(document.createElement("label"), {
+        textContent: "Lunch Money API Token",
+        className: "block text-xs font-medium text-gray-500 mb-1",
+      });
+      const tokenHelp = Object.assign(document.createElement("a"), {
+        href: "https://my.lunchmoney.app/developers",
+        target: "_blank",
+        textContent: "Get token →",
+        className: "text-xs text-green-600 hover:underline ml-2",
+      });
+      tokenLabel.append(tokenHelp);
+
+      const tokenInput = Object.assign(document.createElement("input"), {
+        type: "password",
+        value: saved.token,
+        placeholder: "Paste your API token",
+        className:
+          "w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm font-mono mb-1 focus:outline-none focus:border-green-500",
+      });
+
+      const tokenStatus = Object.assign(document.createElement("div"), {
+        className: "text-xs mb-4 h-5",
+      });
+
+      // --- Lunch Money account dropdown ---
+      const lmLabel = Object.assign(document.createElement("label"), {
+        textContent: "Lunch Money Account",
+        className: "block text-xs font-medium text-gray-500 mb-1",
+      });
+
+      const lmSelect = Object.assign(document.createElement("select"), {
+        className:
+          "w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm mb-4 focus:outline-none focus:border-green-500 bg-white",
+        disabled: true,
+      });
+      lmSelect.innerHTML = `<option value="">Enter token first...</option>`;
+
+      // --- ICS account dropdown ---
+      const icsLabel = Object.assign(document.createElement("label"), {
+        textContent: "ICS Bank Account",
+        className: "block text-xs font-medium text-gray-500 mb-1",
+      });
+
+      const icsSelect = Object.assign(document.createElement("select"), {
+        className:
+          "w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm mb-4 focus:outline-none focus:border-green-500 bg-white",
+        disabled: true,
+      });
+      icsSelect.innerHTML = `<option value="">Loading ICS accounts...</option>`;
+
+      // --- Days field ---
+      const daysLabel = Object.assign(document.createElement("label"), {
+        textContent: "Days to sync",
+        className: "block text-xs font-medium text-gray-500 mb-1",
+      });
+
+      const daysInput = Object.assign(document.createElement("input"), {
+        type: "number",
+        value: saved.days,
+        min: "1",
+        className:
+          "w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm mb-5 focus:outline-none focus:border-green-500",
+      });
+
+      // --- Sync button ---
+      const syncBtn = Object.assign(document.createElement("button"), {
+        textContent: "Sync",
+        disabled: true,
+        className:
+          "w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-5 py-3 rounded-lg text-sm font-medium transition",
+      });
+
+      dialog.addEventListener("cancel", (e) => e.preventDefault());
+
+      dialog.append(
+        title,
+        tokenLabel,
+        tokenInput,
+        tokenStatus,
+        lmLabel,
+        lmSelect,
+        icsLabel,
+        icsSelect,
+        daysLabel,
+        daysInput,
+        syncBtn
+      );
+      document.body.append(dialog);
+      dialog.showModal();
+      queueMicrotask(() => (saved.token ? daysInput.focus() : tokenInput.focus()));
+
+      // --- State ---
+      let lmAccounts = [];
+      let icsAccounts = [];
+      let lmLoaded = false;
+      let icsLoaded = false;
+
+      const updateSyncBtn = () => {
+        syncBtn.disabled = !(
+          lmLoaded &&
+          icsLoaded &&
+          lmSelect.value &&
+          icsSelect.value &&
+          parseInt(daysInput.value, 10) > 0
+        );
+      };
+
+      lmSelect.addEventListener("change", updateSyncBtn);
+      icsSelect.addEventListener("change", updateSyncBtn);
+      daysInput.addEventListener("input", updateSyncBtn);
+
+      // --- Load ICS accounts ---
+      const xsrfToken = decodeURIComponent(
+        document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ""
+      );
+
+      (async () => {
+        try {
+          const resp = await fetch(
+            "/api/nl/sec/frontendservices/allaccountsv2",
+            {
+              headers: {
+                "X-XSRF-TOKEN": xsrfToken,
+                Accept: "application/json",
+              },
+            }
+          );
+          if (!resp.ok) {
+            if (resp.status === 403) {
+              icsSelect.innerHTML = `<option value="">Not logged in – log into ICS first</option>`;
+              return;
+            }
+            throw new Error(`${resp.status}`);
+          }
+          const data = await resp.json();
+          icsAccounts = Array.isArray(data) ? data : [data];
+          if (icsAccounts.length === 0) {
+            icsSelect.innerHTML = `<option value="">No accounts found</option>`;
+            return;
+          }
+          icsSelect.disabled = false;
+          icsSelect.innerHTML =
+            (icsAccounts.length > 1
+              ? `<option value="">Select account...</option>`
+              : "") +
+            icsAccounts
+              .map(
+                (a) =>
+                  `<option value="${a.accountNumber}">${a.accountNumber}${a.productDescription ? " – " + a.productDescription : ""}</option>`
+              )
+              .join("");
+          icsLoaded = true;
+          updateSyncBtn();
+        } catch (err) {
+          icsSelect.innerHTML = `<option value="">Error: ${err.message}</option>`;
+        }
+      })();
+
+      // --- Load LM accounts on token change ---
+      let fetchTimeout;
+      const loadLmAccounts = async (token) => {
+        if (!token || token.length < 10) {
+          lmSelect.disabled = true;
+          lmSelect.innerHTML = `<option value="">Enter token first...</option>`;
+          lmLoaded = false;
+          tokenStatus.textContent = "";
+          updateSyncBtn();
+          return;
+        }
+
+        tokenStatus.textContent = "Loading accounts...";
+        tokenStatus.className = "text-xs mb-4 h-5 text-gray-500";
+        lmSelect.disabled = true;
+        lmSelect.innerHTML = `<option value="">Loading...</option>`;
+        lmLoaded = false;
+        updateSyncBtn();
+
+        try {
+          const resp = await fetch(
+            "https://dev.lunchmoney.app/v1/assets",
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          if (!resp.ok) {
+            tokenStatus.textContent = resp.status === 401 ? "Invalid token" : `Error: ${resp.status}`;
+            tokenStatus.className = "text-xs mb-4 h-5 text-red-500";
+            lmSelect.innerHTML = `<option value="">Fix token above</option>`;
+            return;
+          }
+          const data = await resp.json();
+          lmAccounts = data.assets || [];
+
+          if (lmAccounts.length === 0) {
+            tokenStatus.textContent = "No manual accounts found";
+            tokenStatus.className = "text-xs mb-4 h-5 text-orange-500";
+            lmSelect.innerHTML = `<option value="">No accounts</option>`;
+            return;
+          }
+
+          tokenStatus.innerHTML = `✓ ${lmAccounts.length} account${lmAccounts.length > 1 ? "s" : ""} loaded`;
+          tokenStatus.className = "text-xs mb-4 h-5 text-green-600";
+          lmSelect.disabled = false;
+
+          const fmtBal = (a) => {
+            try {
+              return new Intl.NumberFormat(undefined, {
+                style: "currency",
+                currency: a.currency,
+              }).format(parseFloat(a.balance));
+            } catch {
+              return `${a.balance} ${a.currency}`;
+            }
+          };
+
+          lmSelect.innerHTML =
+            (lmAccounts.length > 1
+              ? `<option value="">Select account...</option>`
+              : "") +
+            lmAccounts
+              .map(
+                (a) =>
+                  `<option value="${a.id}" ${String(a.id) === saved.assetId ? "selected" : ""}>${a.name} (${fmtBal(a)})</option>`
+              )
+              .join("");
+
+          lmLoaded = true;
+          localStorage.setItem("LUNCHMONEY_TOKEN", token);
+          updateSyncBtn();
+        } catch (err) {
+          tokenStatus.textContent = `Network error`;
+          tokenStatus.className = "text-xs mb-4 h-5 text-red-500";
+          lmSelect.innerHTML = `<option value="">Error loading accounts</option>`;
+        }
+      };
+
+      tokenInput.addEventListener("input", () => {
+        clearTimeout(fetchTimeout);
+        fetchTimeout = setTimeout(
+          () => loadLmAccounts(tokenInput.value.trim()),
+          500
+        );
+      });
+
+      // Load immediately if saved token exists
+      if (saved.token) loadLmAccounts(saved.token);
+
+      // --- Submit ---
+      syncBtn.onclick = () => {
+        const token = tokenInput.value.trim();
+        const assetId = lmSelect.value;
+        const icsAccount = icsSelect.value;
+        const days = parseInt(daysInput.value, 10);
+
+        if (!token || !assetId || !icsAccount || days < 1) return;
+
+        localStorage.setItem("LUNCHMONEY_TOKEN", token);
+        localStorage.setItem("LUNCHMONEY_ASSET_ID", assetId);
+        localStorage.setItem("ICS_SYNC_DAYS", String(days));
+
+        dialog.close();
+        dialog.remove();
+        resolve({ token, assetId, icsAccount, days, xsrfToken });
+      };
+
+      daysInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && !syncBtn.disabled) syncBtn.click();
+      });
+    });
+
+  // --- Get settings from setup dialog ---
+  const { token, assetId, icsAccount, days, xsrfToken } =
+    await showSetupDialog();
+
+  const today = new Date();
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - days);
+
+  // --- Progress Dialog ---
   const createProgressDialog = () => {
     const dialog = document.createElement("dialog");
     dialog.className =
       "backdrop:bg-black/80 bg-white rounded-xl p-8 max-w-lg w-[90%] shadow-2xl";
-
     const title = Object.assign(document.createElement("h2"), {
-      textContent: "🔄 Syncing Transactions",
+      textContent: "Syncing Transactions",
       className: "mb-4 text-2xl font-semibold text-gray-900",
     });
-
     const status = Object.assign(document.createElement("div"), {
       textContent: "Initializing...",
       className: "mb-4 text-sm text-gray-600",
     });
-
-    const progress = Object.assign(document.createElement("div"), {
-      className: "mb-4",
-    });
-
     const progressBar = Object.assign(document.createElement("div"), {
-      className: "w-full bg-gray-200 rounded-full h-2",
+      className: "w-full bg-gray-200 rounded-full h-2 mb-4",
     });
-
     const progressFill = Object.assign(document.createElement("div"), {
       className: "bg-green-500 h-2 rounded-full transition-all duration-300",
       style: "width: 0%",
     });
-
     progressBar.append(progressFill);
-    progress.append(progressBar);
-
     const stats = Object.assign(document.createElement("div"), {
       className: "text-sm text-gray-500 space-y-1 mb-2",
     });
-
     const batchInfo = Object.assign(document.createElement("div"), {
       className: "text-xs text-gray-400 italic",
     });
-
-    dialog.append(title, status, progress, stats, batchInfo);
+    dialog.append(title, status, progressBar, stats, batchInfo);
     document.body.append(dialog);
     dialog.showModal();
 
     return {
       dialog,
-      updateStatus: (text) => {
-        status.textContent = text;
-      },
-      updateProgress: (percent) => {
-        progressFill.style.width = `${percent}%`;
-      },
+      updateStatus: (t) => (status.textContent = t),
+      updateProgress: (p) => (progressFill.style.width = `${p}%`),
       updateStats: (fetched, sent) => {
         stats.innerHTML = `
-          <div>📥 Fetched FROM ICS: <strong>${fetched}</strong> transactions</div>
-          <div>📤 Sent TO Lunch Money: <strong>${sent}</strong> transactions</div>
+          <div>Fetched from ICS: <strong>${fetched}</strong></div>
+          <div>Sent to Lunch Money: <strong>${sent}</strong></div>
         `;
       },
-      updateBatch: (currentBatch, totalBatches, dateRange) => {
-        batchInfo.textContent = `Batch ${currentBatch} of ${totalBatches} • ${dateRange}`;
+      updateBatch: (cur, total, info) => {
+        batchInfo.textContent = `Batch ${cur}/${total} • ${info}`;
       },
       close: () => {
         dialog.close();
@@ -224,80 +416,9 @@
     };
   };
 
-  // Modern popup notification
-  const showPopup = (msg) => {
-    const popup = Object.assign(document.createElement("div"), {
-      textContent: msg,
-      className:
-        "fixed bottom-5 right-5 px-5 py-3 bg-gray-800 text-white rounded-lg z-[9999]",
-    });
-    document.body.append(popup);
-    setTimeout(() => popup.remove(), 10000);
-  };
-
-  // Get XSRF token using optional chaining
-  const xsrfToken = decodeURIComponent(
-    document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ""
-  );
-
-  // Fetch all accounts and auto-detect
-  let accounts;
-  try {
-    const accountsResp = await fetch(
-      "/api/nl/sec/frontendservices/allaccountsv2",
-      {
-        headers: {
-          "X-XSRF-TOKEN": xsrfToken,
-          Accept: "application/json",
-        },
-      }
-    );
-
-    if (!accountsResp.ok) {
-      if (accountsResp.status === 403) {
-        showErrorDialog(
-          "❌ Authentication Failed",
-          "Please make sure you're logged into ICS Cards and viewing your account page, then try again.<br><br>If you're not logged in, please log in first and navigate to your transactions page."
-        );
-        return; // Exit early, don't continue
-      }
-      throw new Error(`Failed to fetch accounts: ${accountsResp.status}`);
-    }
-
-    const accountsData = await accountsResp.json();
-    accounts = Array.isArray(accountsData) ? accountsData : [accountsData];
-
-    if (accounts.length === 0) {
-      showErrorDialog(
-        "❌ No Accounts Found",
-        "No accounts were found. Please make sure you're logged in and have access to at least one account."
-      );
-      return; // Exit early
-    }
-  } catch (err) {
-    // Handle network errors or other fetch failures
-    if (err.name === "TypeError" && err.message.includes("fetch")) {
-      showErrorDialog(
-        "❌ Network Error",
-        "Failed to connect to ICS Cards. Please check your internet connection and try again."
-      );
-    } else {
-      showErrorDialog(
-        "❌ Error",
-        `An error occurred: ${err.message}<br><br>Please make sure you're logged into ICS Cards and try again.`
-      );
-    }
-    return; // Exit early
-  }
-
-  // Use first account (or only account)
-  const ACCOUNT_NUMBER = accounts[0].accountNumber;
-  console.log(`Using account: ${ACCOUNT_NUMBER}`);
-
-  // Show progress dialog
+  // --- Sync ---
   const progress = createProgressDialog();
-  progress.updateStatus(`Using account: ${ACCOUNT_NUMBER}`);
-  progress.updateProgress(0);
+  progress.updateStatus(`Fetching from account ${icsAccount}...`);
 
   let until = new Date(today);
   let totalFetched = 0;
@@ -305,9 +426,9 @@
   const totalDays = Math.ceil((today - cutoff) / (1000 * 60 * 60 * 24));
   let processedDays = 0;
   let batchNumber = 0;
-  const batches = [];
 
-  // Calculate total batches first
+  // Count total batches
+  const batches = [];
   let tempUntil = new Date(today);
   while (tempUntil > cutoff) {
     const tempFrom = new Date(tempUntil);
@@ -326,14 +447,14 @@
       from.setDate(from.getDate() - 30);
       if (from < cutoff) from.setTime(cutoff.getTime());
 
-      const daysInInterval = Math.ceil((until - from) / (1000 * 60 * 60 * 24));
+      const daysInInterval = Math.ceil(
+        (until - from) / (1000 * 60 * 60 * 24)
+      );
       processedDays += daysInInterval;
-      const progressPercent = Math.min((processedDays / totalDays) * 100, 95);
-      progress.updateProgress(progressPercent);
+      const pct = Math.min((processedDays / totalDays) * 100, 95);
+      progress.updateProgress(pct);
       progress.updateStatus(
-        `Fetching transactions from ${formatDate(from)} to ${formatDate(
-          until
-        )}...`
+        `Fetching ${formatDate(from)} to ${formatDate(until)}...`
       );
       progress.updateBatch(
         batchNumber,
@@ -341,59 +462,49 @@
         `${formatDate(from)} → ${formatDate(until)}`
       );
 
-      // Build bank API URL with URLSearchParams
       const params = new URLSearchParams({
-        accountNumber: ACCOUNT_NUMBER,
+        accountNumber: icsAccount,
         debitCredit: "DEBIT_AND_CREDIT",
         fromDate: formatDate(from),
         untilDate: formatDate(until),
       });
-      const bankUrl = `/api/nl/sec/frontendservices/transactionsv3/search?${params}`;
 
-      // Fetch transactions from bank
-      const bankResp = await fetch(bankUrl, {
-        headers: {
-          "X-XSRF-TOKEN": xsrfToken,
-          Accept: "application/json",
-        },
-      });
+      const bankResp = await fetch(
+        `/api/nl/sec/frontendservices/transactionsv3/search?${params}`,
+        {
+          headers: {
+            "X-XSRF-TOKEN": xsrfToken,
+            Accept: "application/json",
+          },
+        }
+      );
 
-      if (!bankResp.ok) {
-        throw new Error(
-          `Bank API error: ${bankResp.status} ${bankResp.statusText}`
-        );
-      }
+      if (!bankResp.ok)
+        throw new Error(`ICS API error: ${bankResp.status}`);
 
       const bankData = await bankResp.json();
-      if (!Array.isArray(bankData)) {
-        console.error("Bank API error:", bankData);
-        break;
-      }
+      if (!Array.isArray(bankData)) break;
 
-      // Number of transactions fetched in this interval
       totalFetched += bankData.length;
       progress.updateStats(totalFetched, totalSent);
 
-      // Create import tag (or get existing)
-      const importTagName = `importedAt:${new Date().toISOString()}`;
+      // Create import tag
+      const tagName = `importedAt:${new Date().toISOString()}`;
       let tagId;
       try {
         const tagResp = await fetch("https://api.lunchmoney.dev/v2/tags", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LUNCH_MONEY_TOKEN}`,
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ name: importTagName }),
+          body: JSON.stringify({ name: tagName }),
         });
-        const tagData = await tagResp.json();
-        tagId = tagData.id;
-      } catch (e) {
-        console.error("Failed to create tag:", e);
-      }
+        tagId = (await tagResp.json()).id;
+      } catch {}
 
-      // Transform transactions for Lunch Money v2 API
-      const lmTransactions = bankData.map(
+      // Transform transactions
+      const lmTxns = bankData.map(
         ({
           transactionDate,
           description = "",
@@ -404,30 +515,24 @@
           processingTime,
           batchNr,
           batchSequenceNr,
-        }) => {
-          // Lunch Money v2 API: negative = expense, positive = income
-          // ICS billingAmount already matches this convention
-          const amount = Number(billingAmount);
-          const notes = sourceCurrency && sourceCurrency !== billingCurrency
-            ? `Original: ${sourceAmount} ${sourceCurrency}`
-            : "";
-          return {
-            date: transactionDate,
-            payee: description,
-            amount: amount,
-            manual_account_id: Number(ASSET_ID),
-            tag_ids: tagId ? [tagId] : [],
-            notes,
-            external_id: `${transactionDate}-${processingTime || "000000"}-${batchNr}-${batchSequenceNr}-${billingAmount}`,
-            status: "unreviewed",
-          };
-        }
+        }) => ({
+          date: transactionDate,
+          payee: description,
+          amount: Number(billingAmount),
+          manual_account_id: Number(assetId),
+          tag_ids: tagId ? [tagId] : [],
+          notes:
+            sourceCurrency && sourceCurrency !== billingCurrency
+              ? `Original: ${sourceAmount} ${sourceCurrency}`
+              : "",
+          external_id: `${transactionDate}-${processingTime || "000000"}-${batchNr}-${batchSequenceNr}-${billingAmount}`,
+          status: "unreviewed",
+        })
       );
 
-      // Send to Lunch Money v2 API
-      if (lmTransactions.length > 0) {
+      if (lmTxns.length > 0) {
         progress.updateStatus(
-          `Sending ${lmTransactions.length} transactions to Lunch Money...`
+          `Sending ${lmTxns.length} transactions to Lunch Money...`
         );
         progress.updateBatch(
           batchNumber,
@@ -440,69 +545,59 @@
           {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LUNCH_MONEY_TOKEN}`,
+              Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              transactions: lmTransactions,
+              transactions: lmTxns,
               apply_rules: true,
               skip_duplicates: true,
             }),
           }
         );
 
-        // v2 API returns 201 Created on success
         if (!lmResp.ok && lmResp.status !== 201) {
-          const errorText = await lmResp.text();
+          const errText = await lmResp.text();
           throw new Error(
-            `Lunch Money API error: ${lmResp.status} ${lmResp.statusText} - ${errorText.substring(0, 200)}`
+            `Lunch Money API error: ${lmResp.status} – ${errText.substring(0, 200)}`
           );
         }
 
-        // v2 response: { transactions: [...], skipped_duplicates: [...] }
-        const lmResult = await lmResp.json();
-        const inserted = lmResult.transactions?.length || 0;
-        const skipped = lmResult.skipped_duplicates?.length || 0;
+        const result = await lmResp.json();
+        const inserted = result.transactions?.length || 0;
+        const skipped = result.skipped_duplicates?.length || 0;
         totalSent += inserted;
         progress.updateStats(totalFetched, totalSent);
         progress.updateBatch(
           batchNumber,
           totalBatches,
-          `Batch ${batchNumber}/${totalBatches} complete (${inserted} new, ${skipped} skipped) • ${formatDate(
-            from
-          )} → ${formatDate(until)}`
+          `${inserted} new, ${skipped} skipped • ${formatDate(from)} → ${formatDate(until)}`
         );
         console.log(
-          `Interval ${formatDate(from)} – ${formatDate(until)}: ${inserted} inserted, ${skipped} skipped`
+          `${formatDate(from)} – ${formatDate(until)}: ${inserted} inserted, ${skipped} skipped`
         );
       }
 
-      // Move until to one day before the start of current interval
       until = new Date(from);
       until.setDate(until.getDate() - 1);
     }
 
-    // Complete!
     progress.updateProgress(100);
-    progress.updateStatus("✅ Sync complete!");
+    progress.updateStatus("Sync complete!");
     progress.updateStats(totalFetched, totalSent);
 
     setTimeout(() => {
       progress.close();
       showPopup(
-        `Sync complete. Fetched ${totalFetched} transactions, sent ${totalSent}.`
+        `Sync done: ${totalFetched} fetched, ${totalSent} sent to Lunch Money.`
       );
     }, 1500);
   } catch (err) {
-    console.error("Error syncing historical data:", err);
-    // Close progress dialog if it exists
-    if (typeof progress !== "undefined" && progress) {
-      progress.close();
-    }
-    // Show user-friendly error dialog
-    showErrorDialog(
-      "❌ Sync Failed",
-      `An error occurred while syncing transactions: ${err.message}<br><br>Please try again or check the browser console for more details.`
+    console.error("Sync error:", err);
+    progress?.close();
+    showError(
+      "Sync Failed",
+      `${err.message}<br><br>Check the browser console for details.`
     );
   }
 })();

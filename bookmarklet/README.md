@@ -59,6 +59,3 @@ bun run bookmarklet:watch
 3. The minified bookmarklet is written to `bookmarklet.js`
 4. Copy the contents of `bookmarklet.js` and save as a bookmark
 
-## Demo
-
-![Demo](usage.gif)
