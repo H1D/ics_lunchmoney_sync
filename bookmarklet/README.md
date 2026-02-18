@@ -59,63 +59,6 @@ bun run bookmarklet:watch
 3. The minified bookmarklet is written to `bookmarklet.js`
 4. Copy the contents of `bookmarklet.js` and save as a bookmark
 
-## How It Works
-
-The build script (`build.js`):
-1. Reads `src/bookmarklet.js`
-2. Minifies it using esbuild
-3. Wraps it with `javascript:` protocol
-4. Writes to `bookmarklet.js`
-
-### Build Output
-
-- **Source**: ~250 lines, readable
-- **Built**: ~4.7KB, single-line minified
-- **Target**: ES2022 (modern browsers)
-
-## Using the Bookmarklet
-
-1. Copy the entire content of `bookmarklet.js`
-2. Create a new bookmark in your browser
-3. Paste the code as the URL
-4. Visit [ICS Cards website](https://www.icscards.nl/) and log in
-5. Click the bookmarklet
-
-On first run, it will prompt for:
-- ICS Bank Account Number
-- Lunch Money Asset ID
-- Lunch Money API Token
-
-Values are stored in localStorage for future use.
-
 ## Demo
 
-https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4
-
-## Submission to getbookmarklets.com
-
-This bookmarklet is ready for submission to [getbookmarklets.com](https://getbookmarklets.com/scripts/add).
-
-**Submission URL:** Use the raw GitHub URL to the source file:
-```
-https://raw.githubusercontent.com/H1D/ics_lunchmoney_sync/main/bookmarklet/src/bookmarklet.js
-```
-
-The source file includes userscript-style metadata (`@name`, `@description`, `@image`, `@video`) that will be automatically extracted by getbookmarklets.com.
-
-## Features
-
-- ✅ Modern JavaScript (ES2022)
-- ✅ Native `<dialog>` element for modals
-- ✅ Tailwind CSS styling (loaded dynamically)
-- ✅ Automatic minification with esbuild
-- ✅ Watch mode for development
-- ✅ localStorage for credentials
-- ✅ Syncs last 50 days of transactions
-
-## Tech Stack
-
-- **Runtime**: Bun
-- **Bundler**: esbuild (fastest in class)
-- **Styling**: Tailwind CSS CDN
-- **Target**: Modern browsers (2022+)
+[▶ Watch demo video](https://github.com/H1D/ics_lunchmoney_sync/blob/main/bookmarklet/usage.mp4)
