@@ -90,7 +90,7 @@ Values are stored in localStorage for future use.
 
 ## Demo
 
-[Watch video demo](https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4)
+https://github.com/H1D/ics_lunchmoney_sync/raw/main/bookmarklet/usage.mp4
 
 ## Submission to getbookmarklets.com
 
