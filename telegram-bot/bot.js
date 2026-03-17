@@ -26,48 +26,39 @@ const bot = new TelegramBot(TOKEN, {
   },
 });
 
-// Track consecutive errors for backoff
+// Track consecutive errors — if we can't reach Telegram after MAX_CONSECUTIVE_ERRORS,
+// exit and let Docker restart us with a clean process/connection state.
 let consecutiveErrors = 0;
-const MAX_BACKOFF_MS = 60000;
+const MAX_CONSECUTIVE_ERRORS = 10;
 
-// Handle polling errors with restart logic
-bot.on('polling_error', async (error) => {
+bot.on('polling_error', (error) => {
   consecutiveErrors++;
-  const backoffMs = Math.min(1000 * Math.pow(2, consecutiveErrors - 1), MAX_BACKOFF_MS);
 
   logger.telegram.error('polling_error', error, {
     errorCode: error.code,
     errorMessage: error.message,
     consecutiveErrors,
-    backoffMs,
+    maxErrors: MAX_CONSECUTIVE_ERRORS,
   });
 
-  // Restart polling after backoff
-  if (error.code === 'ETELEGRAM' || error.code === 'EFATAL') {
-    logger.warn('Critical polling error, restarting polling...', { backoffMs });
-
-    try {
-      await bot.stopPolling();
-    } catch (stopErr) {
-      logger.warn('Error stopping polling', { error: stopErr.message });
-    }
-
-    setTimeout(async () => {
-      try {
-        await bot.startPolling();
-        logger.info('Polling restarted successfully');
-      } catch (startErr) {
-        logger.error('Failed to restart polling, exiting...', startErr);
-        process.exit(1); // Let Docker restart us
-      }
-    }, backoffMs);
+  if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+    logger.error(`${MAX_CONSECUTIVE_ERRORS} consecutive polling errors, exiting to let Docker restart`, null, {
+      lastErrorCode: error.code,
+      lastErrorMessage: error.message,
+    });
+    process.exit(1);
   }
 });
 
-// Reset error counter on successful message
+// Reset error counter on any successful polling activity
 bot.on('message', () => {
   if (consecutiveErrors > 0) {
     logger.debug('Resetting error counter after successful message');
+    consecutiveErrors = 0;
+  }
+});
+bot.on('callback_query', () => {
+  if (consecutiveErrors > 0) {
     consecutiveErrors = 0;
   }
 });

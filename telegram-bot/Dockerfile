@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
+    curl \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -34,6 +35,9 @@ RUN bun install
 
 # Copy application files (context is already ./telegram-bot)
 COPY . ./
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+  CMD curl -sf "https://api.telegram.org/bot${TOKEN}/getMe" || exit 1
 
 # Run the bot
 CMD ["bun", "run", "bot.js"]
