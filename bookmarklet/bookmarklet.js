@@ -520,7 +520,7 @@
           batchSequenceNr,
         }) => ({
           date: transactionDate,
-          payee: description,
+          payee: (description || "").toUpperCase(),
           amount: Number(billingAmount),
           manual_account_id: Number(assetId),
           tag_ids: tagId ? [tagId] : [],

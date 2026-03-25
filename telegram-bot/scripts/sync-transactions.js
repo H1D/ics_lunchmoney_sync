@@ -894,6 +894,10 @@ function transformTransactions(transactions, tagId) {
       notes = `Original: ${t.sourceAmount} ${t.sourceCurrency}`;
     }
 
+    // Normalize payee to uppercase so skip_duplicates (date+payee+amount)
+    // catches duplicates even when the bank changes casing between fetches
+    const payee = (t.description || "").toUpperCase();
+
     // Build unique external_id
     // Set EXTERNAL_ID_SUFFIX env var to force reimport (e.g., "v2", "v3")
     const suffix = process.env.EXTERNAL_ID_SUFFIX;
@@ -902,7 +906,7 @@ function transformTransactions(transactions, tagId) {
 
     return {
       date: t.transactionDate,
-      payee: t.description || "",
+      payee,
       amount: signedAmount,
       manual_account_id: assetId,
       tag_ids: [tagId],
