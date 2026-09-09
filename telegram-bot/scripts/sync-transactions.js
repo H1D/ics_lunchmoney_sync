@@ -301,22 +301,6 @@ async function login(page) {
 
     await page.waitForTimeout(500);
 
-    // Find login button by text
-    const loginButton = await page.evaluateHandle(() => {
-      const buttons = Array.from(document.querySelectorAll("button"));
-      return buttons.find(
-        (btn) =>
-          btn.textContent.includes("Inloggen") ||
-          btn.textContent.includes("Login") ||
-          btn.getAttribute("type") === "submit"
-      );
-    });
-
-    if (!loginButton || !(await loginButton.asElement())) {
-      throw new Error("Could not find login button");
-    }
-
-    submitButton = loginButton.asElement();
     logDebug("fill_form", "Login button found");
   } catch (error) {
     logError("fill_form", "Failed to find or fill form fields", error);
@@ -326,8 +310,21 @@ async function login(page) {
   logInfo("submit_form", "Submitting login form...");
 
   try {
-    // Click submit button
-    await submitButton.click();
+    // Click submit button directly via page.evaluate to avoid ElementHandle staleness
+    await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const loginButton = buttons.find(
+        (btn) =>
+          btn.textContent.includes("Inloggen") ||
+          btn.textContent.includes("Login") ||
+          btn.getAttribute("type") === "submit"
+      );
+      if (loginButton) {
+        loginButton.click();
+      } else {
+        throw new Error("Could not find login button");
+      }
+    });
     await page.waitForTimeout(1000);
     logDebug("submit_form", "Login form submitted, waiting for navigation");
   } catch (error) {
