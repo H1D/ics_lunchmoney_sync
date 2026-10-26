@@ -13,6 +13,7 @@ This project contains a Telegram bot that syncs ICS Bank (ABN AMRO) transactions
 - `telegram-bot/` - Main bot application
   - `bot.js` - Telegram bot handler
   - `scripts/sync-transactions.js` - ICS bank login and transaction sync script
+  - `scripts/camt053.js` - Builds the CAMT.053 statement sent to bonnetje (`bun test` in `telegram-bot/`)
   - `Dockerfile` - Docker image with Chromium for Puppeteer
   - `package.json` - Dependencies
 
@@ -28,6 +29,9 @@ All configuration is done via `.env` file (see `.env.example`):
 - `LUNCHMONEY_TOKEN` - Lunch Money API token
 - `LUNCHMONEY_ASSET_ID` - Lunch Money asset ID
 - `SYNC_DAYS` - Number of days to sync (default: 30)
+- Optional business card → bonnetje (adds a "GO 💼" button when `BUSINESS_ICS_EMAIL` is set):
+  `BUSINESS_ICS_EMAIL`, `BUSINESS_ICS_PASSWORD`, `BUSINESS_ICS_ACCOUNT_NUMBER` (optional),
+  `BONNETJE_URL` (Convex `.convex.site` URL), `BONNETJE_EMAIL`, `BONNETJE_INGEST_TOKEN`
 
 ## Docker Setup
 
@@ -49,7 +53,7 @@ All configuration is done via `.env` file (see `.env.example`):
 3. Logs into ICS bank website
 4. Waits for 2FA confirmation (user approves on phone)
 5. Fetches transactions for configured period
-6. Transforms and syncs to Lunch Money API
+6. Transforms and syncs to Lunch Money API (GO 💼: posts a CAMT.053 statement to bonnetje's `/ingest/bank-statement`)
 7. Reports success/failure back to Telegram
 
 ## Notes

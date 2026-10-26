@@ -140,6 +140,26 @@ docker run -d \
 | `LUNCHMONEY_ASSET_ID` | Yes      | Lunch Money asset ID for this account              |
 | `SYNC_DAYS`           | Yes      | Number of days to sync (default: 30)               |
 
+### Business Card → bonnetje (optional)
+
+Set these to get a second **GO 💼** button that syncs a separate ICS business card login to
+[bonnetje](https://github.com/H1D/bonnetje)'s bank transactions (sent as a CAMT.053 statement and
+deduplicated there). The token only works for your own bonnetje account; derive it from the
+`BANK_INGEST_SECRET` set in bonnetje's Convex env:
+
+```bash
+printf %s you@example.com | openssl dgst -sha256 -hmac "$BANK_INGEST_SECRET" | awk '{print $NF}'
+```
+
+| Variable                      | Required | Description                                                |
+| ----------------------------- | -------- | ---------------------------------------------------------- |
+| `BUSINESS_ICS_EMAIL`          | Yes      | ICS login email of the business card (shows the button)    |
+| `BUSINESS_ICS_PASSWORD`       | Yes      | ICS password of the business card                          |
+| `BUSINESS_ICS_ACCOUNT_NUMBER` | No       | Account number (auto-detected if only one account)         |
+| `BONNETJE_URL`                | Yes      | bonnetje Convex site URL, e.g. `https://xxx.convex.site`   |
+| `BONNETJE_EMAIL`              | Yes      | Your bonnetje login email (selects the workspace)          |
+| `BONNETJE_INGEST_TOKEN`       | Yes      | Per-email token derived from bonnetje's `BANK_INGEST_SECRET` |
+
 ### Finding Your Telegram User ID
 
 Send a message to [@userinfobot](https://t.me/userinfobot) on Telegram to get your user ID.

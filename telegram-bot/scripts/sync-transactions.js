@@ -7,26 +7,38 @@
  * 1. Login to ICS bank with email/password
  * 2. Wait for 2FA confirmation
  * 3. Fetch transactions for configured period
- * 4. Sync transactions to Lunch Money
+ * 4. Sync transactions to Lunch Money (or the business card to bonnetje)
  */
 
 import puppeteer from "puppeteer-core";
+import { toCamt053 } from "./camt053.js";
 
 // Read environment variables
-const ICS_EMAIL = process.env.ICS_EMAIL;
-const ICS_PASSWORD = process.env.ICS_PASSWORD;
-const ICS_ACCOUNT_NUMBER = process.env.ICS_ACCOUNT_NUMBER; // Optional - will auto-detect if not set
+// SYNC_TARGET=bonnetje syncs the business card (BUSINESS_ICS_* login) to bonnetje
+const BUSINESS = process.env.SYNC_TARGET === "bonnetje";
+const ICS_EMAIL = BUSINESS ? process.env.BUSINESS_ICS_EMAIL : process.env.ICS_EMAIL;
+const ICS_PASSWORD = BUSINESS ? process.env.BUSINESS_ICS_PASSWORD : process.env.ICS_PASSWORD;
+// Optional - will auto-detect if not set
+const ICS_ACCOUNT_NUMBER = BUSINESS
+  ? process.env.BUSINESS_ICS_ACCOUNT_NUMBER
+  : process.env.ICS_ACCOUNT_NUMBER;
 const LUNCHMONEY_TOKEN = process.env.LUNCHMONEY_TOKEN;
 const LUNCHMONEY_ASSET_ID = process.env.LUNCHMONEY_ASSET_ID;
+const { BONNETJE_URL, BONNETJE_EMAIL, BONNETJE_INGEST_TOKEN } = process.env;
 const SYNC_DAYS_STR = process.env.SYNC_DAYS;
 const SYNC_DAYS = SYNC_DAYS_STR ? parseInt(SYNC_DAYS_STR) : null;
 
 // Validate required environment variables
 const requiredVars = {
-  ICS_EMAIL,
-  ICS_PASSWORD,
-  LUNCHMONEY_TOKEN,
-  LUNCHMONEY_ASSET_ID,
+  ...(BUSINESS
+    ? {
+        BUSINESS_ICS_EMAIL: ICS_EMAIL,
+        BUSINESS_ICS_PASSWORD: ICS_PASSWORD,
+        BONNETJE_URL,
+        BONNETJE_EMAIL,
+        BONNETJE_INGEST_TOKEN,
+      }
+    : { ICS_EMAIL, ICS_PASSWORD, LUNCHMONEY_TOKEN, LUNCHMONEY_ASSET_ID }),
   SYNC_DAYS: SYNC_DAYS_STR, // Validate as string before parsing
 };
 
@@ -866,13 +878,10 @@ async function createTag(tagName) {
  */
 function transformTransactions(transactions, tagId) {
   return transactions.map((t) => {
-    // Determine amount sign for Lunch Money v2 API:
-    // NEGATIVE amounts = expenses (debits, money out)
-    // POSITIVE amounts = income (credits, money in)
-    //
-    // ICS billingAmount already matches Lunch Money convention:
-    // NEGATIVE = charge/expense
-    // POSITIVE = refund/income
+    // ICS billingAmount and Lunch Money share the same sign convention, so it
+    // passes through unchanged:
+    // POSITIVE = charge/expense (money out)
+    // NEGATIVE = refund/payment (money in)
     const amount = parseFloat(t.billingAmount);
     const signedAmount = amount;
 
@@ -1176,6 +1185,37 @@ async function sendToLunchMoney(transactions) {
 }
 
 /**
+ * Upload transactions to bonnetje as a CAMT.053 statement.
+ * bonnetje imports it synchronously and dedupes against earlier uploads.
+ */
+async function sendToBonnetje(transactions) {
+  logInfo("sync_bonnetje", `Sending ${transactions.length} transactions to bonnetje...`);
+
+  const url = new URL("/ingest/bank-statement", BONNETJE_URL);
+  url.searchParams.set("email", BONNETJE_EMAIL);
+  url.searchParams.set("fileName", `ics-${accountNumber}-${formatDate(new Date())}.xml`);
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${BONNETJE_INGEST_TOKEN}`,
+      "Content-Type": "application/xml",
+    },
+    body: toCamt053(transactions, accountNumber),
+  });
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(
+      `bonnetje ${response.status}: ${body.errorMessage || body.error || response.statusText}`
+    );
+    error.step = "sync_bonnetje";
+    throw error;
+  }
+  return body;
+}
+
+/**
  * Main sync function
  */
 async function sync() {
@@ -1249,6 +1289,29 @@ async function sync() {
         syncedCount: 0,
         accountNumber,
       };
+      console.log(JSON.stringify(result));
+      return result;
+    }
+
+    if (BUSINESS) {
+      const imported = await sendToBonnetje(transactions);
+      // bonnetje skips entries it can't parse (still 200), so surface any shortfall
+      const unparsed = transactions.length - (imported.rowCount ?? 0);
+      const result = {
+        success: true,
+        message:
+          `Synced: ${imported.newTransactionCount} new, ${imported.duplicateCount} already in bonnetje` +
+          (unparsed ? `\n⚠️ bonnetje could not read ${unparsed}: ${imported.warnings?.join("; ")}` : ""),
+        transactionsCount: transactions.length,
+        syncedCount: imported.newTransactionCount,
+        fromDate: formatDate(fromDate),
+        untilDate: formatDate(today),
+        accountNumber,
+      };
+      logInfo("sync_complete", "Sync completed successfully", {
+        ...result,
+        durationMs: Date.now() - syncStartTime,
+      });
       console.log(JSON.stringify(result));
       return result;
     }
