@@ -189,11 +189,11 @@ async function launchBrowser() {
  * Login flow: navigate to login page, fill form, submit
  */
 async function login(page) {
-  logInfo("page_load", "Loading login page...", {
-    url: `${ICS_BASE_URL}/web/consumer/abnamro/sca-login`,
-  });
-
-  const loginUrl = `${ICS_BASE_URL}/web/consumer/abnamro/sca-login?URL=abnamro%2Fdashboard`;
+  // Business cards log in on "Mijn ICS Business", a separate portal with its own 2FA app
+  const loginUrl = BUSINESS
+    ? `${ICS_BASE_URL}/web/commercial/business/sca-login`
+    : `${ICS_BASE_URL}/web/consumer/abnamro/sca-login?URL=abnamro%2Fdashboard`;
+  logInfo("page_load", "Loading login page...", { url: loginUrl });
 
   try {
     const response = await page.goto(loginUrl, { waitUntil: "networkidle2", timeout: 30000 });
@@ -371,31 +371,25 @@ async function wait2FA(page) {
 
   // Wait for navigation to dashboard or 2FA completion
   // The page should navigate after 2FA is confirmed
+  let outcome;
   try {
-    await page.waitForFunction(
+    outcome = await page.waitForFunction(
       () => {
         const currentUrl = window.location.href;
         // Check if URL changed from login page
-        return (
+        if (
           !currentUrl.includes("sca-login") &&
           (currentUrl.includes("dashboard") ||
             currentUrl.includes("account") ||
             currentUrl.includes("abnamro"))
-        );
+        ) {
+          return "ok";
+        }
+        // A rejected login stays here with e.g. "Deze inloggegevens kloppen niet. ... (code: 00006)"
+        return document.body.innerText.match(/[^\n]*\(code: \d+\)/)?.[0] || false;
       },
       { timeout: 120000 }
-    );
-
-    const finalUrl = page.url();
-    const waitTime = Date.now() - startTime;
-    logInfo("2fa_verified", `2FA confirmed! Navigated to: ${finalUrl}`, {
-      finalUrl,
-      waitTimeMs: waitTime,
-    });
-
-    // Wait a bit for page to settle and set cookies
-    await page.waitForTimeout(1000);
-    logDebug("2fa_verified", "Page settled, cookies should be set");
+    ).then((handle) => handle.jsonValue());
   } catch (error) {
     const currentUrl = page.url();
     const waitTime = Date.now() - startTime;
@@ -408,6 +402,21 @@ async function wait2FA(page) {
       "2FA verification timeout - please confirm on your phone and try again"
     );
   }
+
+  if (outcome !== "ok") {
+    logError("login_rejected", `ICS rejected the login: ${outcome}`, null);
+    throw new Error(`ICS login failed: ${outcome}`);
+  }
+
+  const finalUrl = page.url();
+  logInfo("2fa_verified", `2FA confirmed! Navigated to: ${finalUrl}`, {
+    finalUrl,
+    waitTimeMs: Date.now() - startTime,
+  });
+
+  // Wait a bit for page to settle and set cookies
+  await page.waitForTimeout(1000);
+  logDebug("2fa_verified", "Page settled, cookies should be set");
 }
 
 /**
