@@ -196,7 +196,8 @@ async function login(page) {
   logInfo("page_load", "Loading login page...", { url: loginUrl });
 
   try {
-    const response = await page.goto(loginUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    // Not networkidle2: one hanging tracker request fails the whole sync. The form wait below covers readiness.
+    const response = await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
     logInfo("page_load", "Login page loaded", {
       status: response?.status(),
       finalUrl: page.url(),
