@@ -79,6 +79,15 @@ logger.info('Telegram bot started successfully', {
 // Lock to prevent multiple simultaneous sync operations
 let isSyncing = false;
 
+// GO syncs the personal card to Lunch Money; GO 💼 (only when configured)
+// syncs the business card to bonnetje
+const GO_KEYBOARD = {
+  inline_keyboard: [[
+    { text: 'GO', callback_data: 'go_button' },
+    ...(process.env.BUSINESS_ICS_EMAIL ? [{ text: 'GO 💼', callback_data: 'go_business' }] : []),
+  ]],
+};
+
 // Handle incoming messages
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
@@ -123,15 +132,7 @@ bot.on('message', (msg) => {
   });
   
   // Show inline keyboard with GO button
-  const options = {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: 'GO', callback_data: 'go_button' }
-        ]
-      ]
-    }
-  };
+  const options = { reply_markup: GO_KEYBOARD };
   
   logger.telegram.request('sendMessage', { chat_id: chatId, text: 'Click the button to start:' });
   bot.sendMessage(chatId, 'Click the button to start:', options)
@@ -155,6 +156,8 @@ bot.on('callback_query', async (query) => {
   const username = query.from.username || 'unknown';
   const messageId = query.message.message_id;
   const callbackData = query.data;
+  const business = callbackData === 'go_business';
+  const targetName = business ? 'bonnetje' : 'Lunch Money';
   
   logger.info('Callback query received', {
     userId,
@@ -253,13 +256,13 @@ bot.on('callback_query', async (query) => {
     scriptPath,
     cwd: '/app',
     command: 'bun run',
-    hasEnvVars: !!process.env.ICS_EMAIL && !!process.env.LUNCHMONEY_TOKEN,
+    target: targetName,
   });
   
   const bunProcess = spawn('bun', ['run', scriptPath], {
     cwd: '/app',
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: process.env  // Pass all environment variables
+    env: { ...process.env, SYNC_TARGET: business ? 'bonnetje' : 'lunchmoney' },
   });
   
   logger.info('Sync script process spawned', {
@@ -443,7 +446,7 @@ bot.on('callback_query', async (query) => {
         if (resultJson.success) {
           result = `✅ ${resultJson.message}\n\n` +
             `📊 Transactions found: ${resultJson.transactionsCount}\n` +
-            `📤 Synced to Lunch Money: ${resultJson.syncedCount}\n` +
+            `📤 Synced to ${targetName}: ${resultJson.syncedCount}\n` +
             `📅 Period: ${resultJson.fromDate} to ${resultJson.untilDate}`;
         } else {
           result = `❌ Error: ${resultJson.error || 'Unknown error'}`;
@@ -511,13 +514,7 @@ bot.on('callback_query', async (query) => {
       await bot.editMessageText(result, {
         chat_id: chatId,
         message_id: messageId,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'GO', callback_data: 'go_button' }
-            ]
-          ]
-        }
+        reply_markup: GO_KEYBOARD
       });
       logger.info('Final result message updated', {
         userId,
@@ -540,13 +537,7 @@ bot.on('callback_query', async (query) => {
       });
       
       bot.sendMessage(chatId, result, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'GO', callback_data: 'go_button' }
-            ]
-          ]
-        }
+        reply_markup: GO_KEYBOARD
       }).then((response) => {
         logger.telegram.response('sendMessage', response);
         logger.info('Sent new message with result (edit failed)', {
@@ -586,13 +577,7 @@ bot.on('callback_query', async (query) => {
       await bot.editMessageText(errorMsg, {
         chat_id: chatId,
         message_id: messageId,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'GO', callback_data: 'go_button' }
-            ]
-          ]
-        }
+        reply_markup: GO_KEYBOARD
       });
     } catch (editError) {
       logger.telegram.error('editMessageText', editError, {
@@ -608,13 +593,7 @@ bot.on('callback_query', async (query) => {
       });
       
       bot.sendMessage(chatId, errorMsg, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'GO', callback_data: 'go_button' }
-            ]
-          ]
-        }
+        reply_markup: GO_KEYBOARD
       }).catch((sendError) => {
         logger.telegram.error('sendMessage', sendError, {
           chatId,
