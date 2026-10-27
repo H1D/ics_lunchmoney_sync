@@ -12,6 +12,7 @@
 
 import puppeteer from "puppeteer-core";
 import { toCamt053 } from "./camt053.js";
+import { createInterface } from "readline";
 
 // Read environment variables
 // SYNC_TARGET=bonnetje syncs the business card (BUSINESS_ICS_* login) to bonnetje
@@ -276,6 +277,7 @@ async function login(page) {
 
         if (usernameField) {
           usernameField.value = email;
+          usernameField.dataset.icsUser = "1";
           usernameField.dispatchEvent(new Event("input", { bubbles: true }));
           usernameField.dispatchEvent(new Event("change", { bubbles: true }));
         }
@@ -358,6 +360,92 @@ async function login(page) {
     });
     // Navigation might not happen immediately - that's OK, we'll check in wait2FA
   }
+}
+
+/**
+ * Read one line from stdin. The bot pipes the SMS code in; a closed stdin means no code.
+ */
+function readStdinLine(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const rl = createInterface({ input: process.stdin });
+    const timer = setTimeout(() => {
+      // Reject before close: close() fires the "close" handler, which would otherwise win
+      reject(new Error("No SMS code received in time"));
+      rl.close();
+    }, timeoutMs);
+    rl.once("line", (line) => {
+      clearTimeout(timer);
+      // Resolve before close: close() fires the "close" handler synchronously
+      resolve(line.trim());
+      rl.close();
+    });
+    rl.once("close", () => {
+      clearTimeout(timer);
+      reject(new Error("No SMS code received (stdin closed)"));
+    });
+  });
+}
+
+/**
+ * Business cards get an SMS code after the password step (personal cards approve in the app).
+ * Waits for the code box, then types in the code from stdin. Returns when wait2FA can take over.
+ */
+async function enterSmsCode(page) {
+  let handle;
+  try {
+    handle = await page.waitForFunction(
+      () => {
+        if (!window.location.href.includes("sca-login")) return "done";
+        if (document.body.innerText.match(/\(code: \d+\)/)) return "rejected";
+        return (
+          document.querySelector('input[autocomplete="one-time-code"]') ||
+          Array.from(document.querySelectorAll("input")).find(
+            (input) =>
+              input.offsetParent !== null &&
+              !input.dataset.icsUser &&
+              ["", "text", "tel", "number"].includes(input.type)
+          ) ||
+          false
+        );
+      },
+      { timeout: 30000, polling: 500 }
+    );
+  } catch (error) {
+    logInfo("otp_check", "No SMS code step, going to wait for app approval", { url: page.url() });
+    return;
+  }
+
+  const codeBox = handle.asElement();
+  if (!codeBox) {
+    logInfo("otp_check", `No SMS code step (${await handle.jsonValue()})`, { url: page.url() });
+    return;
+  }
+
+  logInfo("otp_wait", "ICS sent an SMS code. Waiting for the code...", { url: page.url() });
+  const code = await readStdinLine(10 * 60 * 1000);
+
+  // ICS shows one plain text box for the whole code
+  await codeBox.click();
+  await codeBox.type(code, { delay: 50 });
+  const typed = await codeBox.evaluate((el) => el.value.length);
+  logInfo("otp_fill", `Typed the code: ${typed} of ${code.length} digits in the box`);
+
+  const submitted = await page.evaluate(() => {
+    const buttons = Array.from(document.querySelectorAll("button"));
+    const confirm =
+      buttons.find((btn) =>
+        /bevestig|verder|controleer|doorgaan|verzend|inloggen|continue|submit|confirm/i.test(
+          btn.textContent
+        )
+      ) || document.querySelector('button[type="submit"]');
+    if (!confirm) return buttons.map((btn) => btn.textContent.trim()).filter(Boolean);
+    confirm.click();
+    return true;
+  });
+  if (submitted !== true) {
+    throw new Error(`Could not find the SMS confirm button. Buttons: ${JSON.stringify(submitted)}`);
+  }
+  logInfo("otp_submit", "SMS code submitted", { url: page.url() });
 }
 
 /**
@@ -1245,6 +1333,9 @@ async function sync() {
 
     // Login flow
     await login(page);
+
+    // Business cards: SMS code instead of app approval
+    if (BUSINESS) await enterSmsCode(page);
 
     // Wait for 2FA
     await wait2FA(page);

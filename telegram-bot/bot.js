@@ -79,6 +79,9 @@ logger.info('Telegram bot started successfully', {
 // Lock to prevent multiple simultaneous sync operations
 let isSyncing = false;
 
+// Business sync waiting for the ICS SMS code: the next code-like message is piped to its stdin
+let awaitingCode = null;
+
 // GO syncs the personal card to Lunch Money; GO 💼 (only when configured)
 // syncs the business card to bonnetje
 const GO_KEYBOARD = {
@@ -130,7 +133,18 @@ bot.on('message', (msg) => {
     chatId,
     messageText: messageText.substring(0, 100),
   });
-  
+
+  const code = messageText.replace(/\s/g, '');
+  if (awaitingCode && /^\d{4,8}$/.test(code)) {
+    awaitingCode.stdin.write(`${code}\n`);
+    awaitingCode = null;
+    logger.info('SMS code passed to sync script', { userId, chatId });
+    bot.sendMessage(chatId, '🔑 Code received, logging in...').catch((error) => {
+      logger.telegram.error('sendMessage', error, { userId, chatId, type: 'code_received' });
+    });
+    return;
+  }
+
   // Show inline keyboard with GO button
   const options = { reply_markup: GO_KEYBOARD };
   
@@ -321,6 +335,8 @@ bot.on('callback_query', async (query) => {
           });
         }
         
+        if (logEntry.step === 'otp_wait') awaitingCode = bunProcess;
+
         if (logEntry.step && logEntry.message) {
           // Map step to user-friendly message
           let userMessage = '';
@@ -337,8 +353,17 @@ bot.on('callback_query', async (query) => {
             case 'submit_form':
               userMessage = '🔐 Submitting login form...';
               break;
+            case 'otp_wait':
+              userMessage = '📱 ICS sent an SMS code to the business phone.\n\nSend the code here as a message.';
+              break;
+            case 'otp_fill':
+            case 'otp_submit':
+              userMessage = '⏳ Checking the SMS code...';
+              break;
             case '2fa_wait':
-              userMessage = '⏳ Waiting for 2FA confirmation on your phone...\n\nPlease check your mobile app and approve the login.';
+              userMessage = business
+                ? '⏳ Checking the SMS code...'
+                : '⏳ Waiting for 2FA confirmation on your phone...\n\nPlease check your mobile app and approve the login.';
               break;
             case '2fa_verified':
               userMessage = '✅ 2FA confirmed!';
@@ -419,7 +444,8 @@ bot.on('callback_query', async (query) => {
     
     // Release sync lock
     isSyncing = false;
-    
+    if (awaitingCode === bunProcess) awaitingCode = null;
+
     // Clear any status update interval
     if (statusUpdateInterval) {
       clearInterval(statusUpdateInterval);
