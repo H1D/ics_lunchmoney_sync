@@ -160,6 +160,9 @@ printf %s you@example.com | openssl dgst -sha256 -hmac "$BANK_INGEST_SECRET" | a
 | `BONNETJE_EMAIL`              | Yes      | Your bonnetje login email (selects the workspace)          |
 | `BONNETJE_INGEST_TOKEN`       | Yes      | Per-email token derived from bonnetje's `BANK_INGEST_SECRET` |
 
+ICS Business logs in with an SMS code instead of app approval. After **GO 💼** the bot asks for the
+code; send it as a normal message within a few minutes, or the code expires.
+
 ### Finding Your Telegram User ID
 
 Send a message to [@userinfobot](https://t.me/userinfobot) on Telegram to get your user ID.
